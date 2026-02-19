@@ -1,0 +1,46 @@
+{
+  "name": "mcp-servers",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "description": "MCP servers for AI-powered model interpretation and database querying",
+  "scripts": {
+    "start": "tsx src/model-interpretation/index.ts",
+    "start:db": "tsx src/database-query/index.ts",
+    "start:all": "concurrently \"npm run start\" \"npm run start:db\"",
+    "dev": "tsx watch src/model-interpretation/index.ts",
+    "dev:db": "tsx watch src/database-query/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "llm",
+    "database",
+    "schema"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.1",
+    "@google/generative-ai": "^0.21.0",
+    "@supabase/supabase-js": "^2.86.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "pg": "^8.13.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.11.10",
+    "concurrently": "^9.1.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

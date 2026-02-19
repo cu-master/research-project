@@ -1,0 +1,160 @@
+import express, { Request, Response, NextFunction } from "express";
+import cors from "cors";
+import { config } from "./config.js";
+import { tools, toolMap } from "./tools/index.js";
+import { clearAllStoredContent } from "./store.js";
+
+// ============================================================================
+// Express App Setup
+// ============================================================================
+
+export const app = express();
+
+app.use(cors());
+app.use(express.json({ limit: "10mb" }));
+
+// ============================================================================
+// Health Check Endpoint
+// ============================================================================
+
+app.get("/health", (_req: Request, res: Response) => {
+  res.json({
+    status: "ok",
+    server: "model-interpretation",
+    version: "2.1.0",
+    provider: config.provider,
+    toolCount: tools.length,
+  });
+});
+
+// ============================================================================
+// Tool Endpoints
+// ============================================================================
+
+app.get("/tools", (_req: Request, res: Response) => {
+  const toolList = tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    inputSchema: t.inputSchema,
+  }));
+  res.json({ tools: toolList });
+});
+
+app.get("/tools/:name", (req: Request, res: Response) => {
+  const tool = toolMap.get(req.params.name);
+  if (!tool) {
+    res.status(404).json({ error: `Tool "${req.params.name}" not found` });
+    return;
+  }
+  res.json({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+  });
+});
+
+app.post("/tools/:name/call", async (req: Request, res: Response) => {
+  const tool = toolMap.get(req.params.name);
+  if (!tool) {
+    res.status(404).json({ error: `Tool "${req.params.name}" not found` });
+    return;
+  }
+
+  try {
+    const args = req.body.arguments || req.body || {};
+    const result = await tool.handler(args);
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      content: [{ type: "text", text: `Error: ${message}` }],
+      isError: true,
+    });
+  }
+});
+
+// ============================================================================
+// MCP-Compatible Endpoints
+// ============================================================================
+
+app.post("/mcp/call-tool", async (req: Request, res: Response) => {
+  const { name, arguments: args } = req.body;
+
+  if (!name) {
+    res.status(400).json({ error: "Tool name is required" });
+    return;
+  }
+
+  const tool = toolMap.get(name);
+  if (!tool) {
+    res.status(404).json({ error: `Tool "${name}" not found` });
+    return;
+  }
+
+  try {
+    const result = await tool.handler(args || {});
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      content: [{ type: "text", text: `Error: ${message}` }],
+      isError: true,
+    });
+  }
+});
+
+app.post("/mcp/list-tools", (_req: Request, res: Response) => {
+  const toolList = tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    inputSchema: t.inputSchema,
+  }));
+  res.json({ tools: toolList });
+});
+
+// ============================================================================
+// Store Management Endpoints
+// ============================================================================
+
+app.post("/mcp/clear-store", (_req: Request, res: Response) => {
+  try {
+    clearAllStoredContent();
+    res.json({ success: true, message: "Store cleared successfully" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to clear store: ${message}` });
+  }
+});
+
+// ============================================================================
+// Error Handler
+// ============================================================================
+
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error("Server error:", err);
+  res.status(500).json({ error: "Internal server error" });
+});
+
+// ============================================================================
+// Server Startup
+// ============================================================================
+
+export function startServer(): void {
+  app.listen(config.port, () => {
+    console.log(`Server running on http://localhost:${config.port}`);
+    console.log(`AI Provider: ${config.provider}\n`);
+    console.log(`Available endpoints:`);
+    console.log(`  GET  /health - Health check`);
+    console.log(`  GET  /tools - List all tools`);
+    console.log(`  GET  /tools/:name - Get tool info`);
+    console.log(`  POST /tools/:name/call - Call a tool`);
+    console.log(`  POST /mcp/call-tool - MCP-compatible tool call`);
+    console.log(`  POST /mcp/list-tools - MCP-compatible tool listing`);
+    console.log(`  POST /mcp/clear-store - Clear all stored content`);
+    console.log(`\nAvailable tools:`);
+    for (const tool of tools) {
+      console.log(`  - ${tool.name}: ${tool.description.substring(0, 50)}...`);
+    }
+  });
+}
+

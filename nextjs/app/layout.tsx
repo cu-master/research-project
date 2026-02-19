@@ -1,0 +1,24 @@
+import type { Metadata } from "next";
+import "./globals.css";
+import AuthProvider from "@/components/layout/auth-provider";
+
+export const metadata: Metadata = {
+  title: "AI Chatbot",
+  description: "DataSpecer & Database Query Chatbot",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body className="font-sans antialiased">
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </body>
+    </html>
+  );
+}

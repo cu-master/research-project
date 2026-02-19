@@ -1,0 +1,23 @@
+services:
+  ontop:
+    image: ontop/ontop:5.3.1
+    container_name: ontop-sparql-endpoint
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./ontop/input:/opt/ontop/input:ro
+      - ./ontop/jdbc:/opt/ontop/jdbc:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      ONTOP_MAPPING_FILE: /opt/ontop/input/mapping.ttl
+      ONTOP_PROPERTIES_FILE: /opt/ontop/input/ontop.properties
+      ONTOP_LAZY_INIT: "true"
+      ONTOP_DEV_MODE: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/sparql?query=ASK%7B%3Fs%20%3Fp%20%3Fo%7D || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

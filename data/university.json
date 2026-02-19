@@ -1,0 +1,208 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "University Data Model",
+    "description": "A JSON schema for a university, including students, teachers, and subjects.",
+    "type": "object",
+    "properties": {
+      "students": {
+        "type": "array",
+        "items": { "$ref": "#/definitions/student" },
+        "description": "A list of all students in the university."
+      },
+      "teachers": {
+        "type": "array",
+        "items": { "$ref": "#/definitions/teacher" },
+        "description": "A list of all teachers in the university."
+      },
+      "subjects": {
+        "type": "array",
+        "items": { "$ref": "#/definitions/subject" },
+        "description": "A list of all subjects offered by the university."
+      }
+    },
+    "required": [
+      "students",
+      "teachers",
+      "subjects"
+    ],
+    "definitions": {
+      "student": {
+        "type": "object",
+        "description": "Schema for a student.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the student (e.g., UUID or a university-specific ID)."
+          },
+          "firstName": {
+            "type": "string",
+            "description": "Student's first name."
+          },
+          "lastName": {
+            "type": "string",
+            "description": "Student's last name."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Student's email address."
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "description": "Student's date of birth (YYYY-MM-DD)."
+          },
+          "major": {
+            "type": "string",
+            "description": "Student's primary field of study (e.g., 'Computer Science', 'History')."
+          },
+          "enrollmentDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Date when the student enrolled in the university (YYYY-MM-DD)."
+          },
+          "enrolledSubjects": {
+            "type": "array",
+            "description": "List of subjects the student is currently enrolled in or has taken.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "subjectId": {
+                  "type": "string",
+                  "description": "ID of the enrolled subject, referencing a subject in the 'subjects' list."
+                },
+                "semester": {
+                  "type": "string",
+                  "description": "Semester of enrollment (e.g., 'Fall 2025', 'Spring 2026')."
+                },
+                "grade": {
+                  "type": ["string", "null"],
+                  "description": "Grade received in the subject (e.g., 'A', 'B+', 'Pass'). Null if not yet graded."
+                }
+              },
+              "required": [
+                "subjectId",
+                "semester"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "email",
+          "dateOfBirth",
+          "major",
+          "enrollmentDate"
+        ],
+        "additionalProperties": false
+      },
+      "teacher": {
+        "type": "object",
+        "description": "Schema for a teacher.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the teacher (e.g., UUID or a university-specific ID)."
+          },
+          "firstName": {
+            "type": "string",
+            "description": "Teacher's first name."
+          },
+          "lastName": {
+            "type": "string",
+            "description": "Teacher's last name."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Teacher's email address."
+          },
+          "department": {
+            "type": "string",
+            "description": "Department the teacher belongs to (e.g., 'School of Engineering', 'Faculty of Arts')."
+          },
+          "hireDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Date when the teacher was hired (YYYY-MM-DD)."
+          },
+          "officeLocation": {
+            "type": "string",
+            "description": "Teacher's office location (e.g., 'Building A, Room 101')."
+          },
+          "specializations": {
+            "type": "array",
+            "description": "Teacher's areas of specialization.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "email",
+          "department",
+          "hireDate"
+        ],
+        "additionalProperties": false
+      },
+      "subject": {
+        "type": "object",
+        "description": "Schema for a subject.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the subject."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the subject (e.g., 'Introduction to Programming')."
+          },
+          "code": {
+            "type": "string",
+            "description": "Unique code for the subject (e.g., 'CS101', 'HIST202')."
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of credits the subject is worth."
+          },
+          "description": {
+            "type": "string",
+            "description": "A brief description of the subject content."
+          },
+          "teacherId": {
+            "type": "string",
+            "description": "ID of the primary teacher responsible for this subject, referencing a teacher in the 'teachers' list."
+          },
+          "department": {
+            "type": "string",
+            "description": "Department offering the subject (e.g., 'Computer Science', 'History')."
+          },
+          "prerequisites": {
+            "type": "array",
+            "description": "List of subject IDs that are prerequisites for this subject.",
+            "items": {
+              "type": "string",
+              "description": "ID of a prerequisite subject."
+            },
+            "default": []
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "code",
+          "credits",
+          "teacherId",
+          "department"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }  

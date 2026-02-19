@@ -1,0 +1,10 @@
+---
+services:
+  # --- System Model --- #
+  structurizr:
+    container_name: system-architecture
+    image: "structurizr/lite:latest"
+    ports:
+      - "8080:8080"
+    volumes:
+      - "/Users/sothikhorn/Desktop/research-project/my-ai-chatbot/c4-model/model:/usr/local/structurizr:rw"
