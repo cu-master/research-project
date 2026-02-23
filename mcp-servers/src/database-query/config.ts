@@ -1,3 +1,4 @@
+import path from "node:path";
 import { loadEnv, getDirname, createLLMConfig } from "../shared/index.js";
 import type { AppConfig } from "./types.js";
 
@@ -14,7 +15,19 @@ loadEnv(__dirname);
 
 const llmConfig = createLLMConfig();
 
+const defaultProjectRoot = path.resolve(__dirname, "..", "..", "..");
+const projectRoot = process.env.PROJECT_ROOT
+  ? path.resolve(process.env.PROJECT_ROOT)
+  : defaultProjectRoot;
+
 export const config: AppConfig = {
   ...llmConfig,
   port: parseInt(process.env.DB_MCP_SERVER_PORT || "3002", 10),
+  ontopSparqlUrl:
+    process.env.ONTOP_SPARQL_URL || "http://localhost:8080/sparql",
+  ontopInputDir:
+    process.env.ONTOP_INPUT_DIR
+      ? path.resolve(process.env.ONTOP_INPUT_DIR)
+      : path.join(projectRoot, "ontop", "input"),
+  projectRoot,
 };

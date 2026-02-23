@@ -8,21 +8,23 @@ import { getProject } from "@/lib/db/projects";
 // Shared helper: load and validate project content
 // ============================================================================
 
-async function loadProjectContent(): Promise<
-  { project: Awaited<ReturnType<typeof getProject>>; error?: undefined } | { project?: undefined; error: string }
-> {
+type ProjectResult =
+  | { ok: true; project: NonNullable<Awaited<ReturnType<typeof getProject>>> }
+  | { ok: false; error: string };
+
+async function loadProjectContent(): Promise<ProjectResult> {
   const { projectId, userId } = getLangChainRequestContext();
 
   if (!projectId || !userId) {
-    return { error: "No project context available. Please make sure a project is selected for this session." };
+    return { ok: false, error: "No project context available. Please make sure a project is selected for this session." };
   }
 
   const project = await getProject(projectId, userId);
   if (!project) {
-    return { error: `Project ${projectId} not found.` };
+    return { ok: false, error: `Project ${projectId} not found.` };
   }
 
-  return { project };
+  return { ok: true, project };
 }
 
 // ============================================================================
@@ -41,7 +43,7 @@ const answerQuerySchema = z.object({
 export const answerQueryTool = tool(
   async ({ query }: z.infer<typeof answerQuerySchema>) => {
     const result = await loadProjectContent();
-    if (result.error) return `Error: ${result.error}`;
+    if (!result.ok) return `Error: ${result.error}`;
     const { project } = result;
 
     if (!project.content || !project.content.trim()) {
@@ -68,7 +70,7 @@ export const answerQueryTool = tool(
 export const summarizeContentTool = tool(
   async () => {
     const result = await loadProjectContent();
-    if (result.error) return `Error: ${result.error}`;
+    if (!result.ok) return `Error: ${result.error}`;
     const { project } = result;
 
     if (!project.content || !project.content.trim()) {
@@ -94,7 +96,7 @@ export const summarizeContentTool = tool(
 export const explainMappingTool = tool(
   async () => {
     const result = await loadProjectContent();
-    if (result.error) return `Error: ${result.error}`;
+    if (!result.ok) return `Error: ${result.error}`;
     const { project } = result;
 
     if (!project.r2rml_mapping || !project.r2rml_mapping.trim()) {

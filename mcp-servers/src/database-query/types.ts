@@ -86,4 +86,7 @@ export interface AppConfig {
   anthropicModel: string;
   googleModel: string;
   port: number;
+  ontopSparqlUrl: string;
+  ontopInputDir: string;
+  projectRoot: string;
 }

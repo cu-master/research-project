@@ -6,6 +6,7 @@ import {
   getSampleQueriesSchema,
   getTableSchemaSchema,
   listTablesSchema,
+  obdaQuerySchema,
 } from "./schemas.js";
 import {
   handleExecuteQuery,
@@ -14,6 +15,7 @@ import {
   handleGetTableSchema,
   handleListTables,
 } from "./handlers.js";
+import { handleObdaQuery } from "./obda-handler.js";
 
 // ============================================================================
 // Tool Registry
@@ -53,6 +55,15 @@ export const tools: ToolDefinition[] = [
     inputSchema: zodToJsonSchema(getSampleQueriesSchema),
     handler: handleGetSampleQueries,
   },
+  {
+    name: "obda-query",
+    description:
+      "Performs an OBDA query using the Ontop engine. Generates SPARQL from a natural language query " +
+      "using the provided conceptual definition, ontology, and R2RML mapping, then executes it via Ontop " +
+      "which translates SPARQL to SQL. Returns results formatted in ontology terms.",
+    inputSchema: zodToJsonSchema(obdaQuerySchema),
+    handler: handleObdaQuery,
+  },
 ];
 
 export const toolMap = new Map(tools.map((t) => [t.name, t]));
@@ -60,3 +71,4 @@ export const toolMap = new Map(tools.map((t) => [t.name, t]));
 // Re-export schemas and handlers for direct access
 export * from "./schemas.js";
 export * from "./handlers.js";
+export * from "./obda-handler.js";

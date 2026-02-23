@@ -52,3 +52,40 @@ export const getSampleQueriesSchema = z.object({
     .optional()
     .describe("ID of the database to use (uses default if not specified)"),
 });
+
+// ============================================================================
+// OBDA Query Schema
+// ============================================================================
+
+const dbConfigSchema = z.object({
+  host: z.string().describe("Database host"),
+  port: z.number().optional().default(5432).describe("Database port"),
+  database: z.string().describe("Database name"),
+  user: z.string().describe("Database user"),
+  password: z.string().optional().default("").describe("Database password"),
+  ssl: z.boolean().optional().default(false).describe("Use SSL"),
+});
+
+export const obdaQuerySchema = z.object({
+  query: z
+    .string()
+    .min(1)
+    .describe("User's natural language database query."),
+  conceptualDefinition: z
+    .string()
+    .describe("Conceptual definition from the Model Interpretation Server (entities, attributes, relationships relevant to the query)."),
+  r2rmlMapping: z
+    .string()
+    .min(1)
+    .describe("R2RML mapping in Turtle syntax."),
+  dbConfig: dbConfigSchema.describe("Database connection configuration for Ontop."),
+  ontopSparqlUrl: z
+    .string()
+    .optional()
+    .describe("Ontop SPARQL endpoint URL (defaults to server config)."),
+  includeDebugContext: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("If true, include raw SPARQL JSON in the response for debugging."),
+});
