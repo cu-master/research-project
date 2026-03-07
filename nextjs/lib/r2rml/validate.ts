@@ -2,6 +2,7 @@ import { Parser, Quad } from "n3";
 
 // R2RML namespace
 const RR = "http://www.w3.org/ns/r2rml#";
+const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 
 interface ValidationIssue {
   level: "error" | "warning";
@@ -26,6 +27,10 @@ interface DbSchemaForValidation {
   }[];
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Internal helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
  * Parse Turtle content and return quads or a syntax error.
  */
@@ -44,7 +49,6 @@ function parseTurtle(
         if (quad) {
           quads.push(quad);
         } else {
-          // null quad means parsing finished successfully
           resolve({ quads });
         }
       });
@@ -57,9 +61,7 @@ function parseTurtle(
   });
 }
 
-/**
- * Extract string values for a given predicate from quads with a specific subject.
- */
+/** Return all object values for a given subject + predicate pair. */
 function getObjects(
   quads: Quad[],
   subject: string,
@@ -70,15 +72,30 @@ function getObjects(
     .map((q) => q.object.value);
 }
 
-/**
- * Get all subjects that have rdf:type or are referenced by a given predicate.
- */
+/** Return all unique subjects that have a given predicate (any object). */
 function getSubjectsWithPredicate(
   quads: Quad[],
   predicate: string
 ): string[] {
-  return [...new Set(quads.filter((q) => q.predicate.value === predicate).map((q) => q.subject.value))];
+  return [
+    ...new Set(
+      quads.filter((q) => q.predicate.value === predicate).map((q) => q.subject.value)
+    ),
+  ];
 }
+
+/**
+ * Extract column names from an rr:template string, e.g.
+ * "http://example.org/{customer_id}/{name}" → ["customer_id", "name"]
+ */
+function extractTemplateColumns(template: string): string[] {
+  const matches = template.match(/\{([^}]+)\}/g);
+  return matches ? matches.map((m) => m.slice(1, -1)) : [];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main validator
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Validate an R2RML mapping string.
@@ -108,7 +125,7 @@ export async function validateR2rmlMapping(
     };
   }
 
-  // ── Level 1: Turtle Syntax ─────────────────────────────────────────
+  // ── Level 1: Turtle Syntax ─────────────────────────────────────────────────
   const { quads, error } = await parseTurtle(ttl);
 
   if (error) {
@@ -124,23 +141,19 @@ export async function validateR2rmlMapping(
   if (quads.length === 0) {
     return {
       valid: false,
-      issues: [
-        { level: "error", message: "Parsed successfully but no triples found." },
-      ],
+      issues: [{ level: "error", message: "Parsed successfully but no triples found." }],
       stats,
     };
   }
 
-  // ── Level 2: R2RML Structure ───────────────────────────────────────
+  // ── Level 2: R2RML Structure ───────────────────────────────────────────────
 
-  // Find all TriplesMap subjects (anything with rr:logicalTable)
+  // Collect all TriplesMap subjects
   const triplesMapSubjects = getSubjectsWithPredicate(quads, `${RR}logicalTable`);
-
-  // Also check for subjects typed as rr:TriplesMap
   const typedTriplesMaps = quads
     .filter(
       (q) =>
-        q.predicate.value === "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" &&
+        q.predicate.value === RDF_TYPE &&
         q.object.value === `${RR}TriplesMap`
     )
     .map((q) => q.subject.value);
@@ -156,12 +169,26 @@ export async function validateR2rmlMapping(
     });
   }
 
-  // Collect all referenced tables and columns
+  // Build a set of all known TriplesMap URIs for cross-reference validation
+  const knownTriplesMapUris = new Set(allTriplesMaps);
+
+  // Track (table → Set<column>) for scoped DB cross-checking later
+  const tableToColumns = new Map<string, Set<string>>();
+
   const allReferencedTables: string[] = [];
   const allReferencedColumns: string[] = [];
 
   for (const tm of allTriplesMaps) {
-    // Check rr:logicalTable
+
+    // ── IMPROVEMENT 3: Warn on blank-node TriplesMap subjects ──────────────
+    if (tm.startsWith("_:")) {
+      issues.push({
+        level: "warning",
+        message: `TriplesMap is a blank node ("${tm}"). Ontop requires named TriplesMap subjects (IRIs). Consider giving it an explicit URI.`,
+      });
+    }
+
+    // ── rr:logicalTable ────────────────────────────────────────────────────
     const logicalTables = getObjects(quads, tm, `${RR}logicalTable`);
     if (logicalTables.length === 0) {
       issues.push({
@@ -170,7 +197,8 @@ export async function validateR2rmlMapping(
       });
     }
 
-    // For each logicalTable, check for rr:tableName or rr:sqlQuery
+    // Resolve the table name(s) for this TriplesMap
+    const tmTableNames: string[] = [];
     for (const lt of logicalTables) {
       const tableNames = getObjects(quads, lt, `${RR}tableName`);
       const sqlQueries = getObjects(quads, lt, `${RR}sqlQuery`);
@@ -181,19 +209,56 @@ export async function validateR2rmlMapping(
           message: `LogicalTable of <${tm}> has neither rr:tableName nor rr:sqlQuery.`,
         });
       }
+
+      tmTableNames.push(...tableNames);
       allReferencedTables.push(...tableNames);
     }
 
-    // Check rr:subjectMap
+    // Initialise column sets for each referenced table
+    for (const tn of tmTableNames) {
+      if (!tableToColumns.has(tn)) {
+        tableToColumns.set(tn, new Set());
+      }
+    }
+
+    // Helper: record a column against the tables of this TriplesMap
+    const recordColumn = (col: string) => {
+      allReferencedColumns.push(col);
+      for (const tn of tmTableNames) {
+        tableToColumns.get(tn)?.add(col);
+      }
+    };
+
+    // ── IMPROVEMENT 6: Missing rr:subjectMap is now an ERROR ──────────────
     const subjectMaps = getObjects(quads, tm, `${RR}subjectMap`);
     if (subjectMaps.length === 0) {
       issues.push({
-        level: "warning",
-        message: `TriplesMap <${tm}> is missing rr:subjectMap.`,
+        level: "error",
+        message: `TriplesMap <${tm}> is missing rr:subjectMap. Without a subject map no triples can be generated.`,
       });
     }
 
-    // Check predicateObjectMaps
+    // ── IMPROVEMENT 2: Warn if subjectMap has no rr:class ─────────────────
+    for (const sm of subjectMaps) {
+      const classes = getObjects(quads, sm, `${RR}class`);
+      if (classes.length === 0) {
+        issues.push({
+          level: "warning",
+          message: `SubjectMap of <${tm}> has no rr:class declaration. Ontop may not be able to map results to ontology classes.`,
+        });
+      }
+
+      // Collect columns from subjectMap templates
+      const templates = getObjects(quads, sm, `${RR}template`);
+      for (const tpl of templates) {
+        extractTemplateColumns(tpl).forEach(recordColumn);
+      }
+
+      // Collect columns declared directly on subjectMap
+      getObjects(quads, sm, `${RR}column`).forEach(recordColumn);
+    }
+
+    // ── predicateObjectMaps ────────────────────────────────────────────────
     const poms = getObjects(quads, tm, `${RR}predicateObjectMap`);
     for (const pom of poms) {
       const predicates = [
@@ -218,38 +283,51 @@ export async function validateR2rmlMapping(
         });
       }
 
-      // Collect columns from objectMaps
       for (const om of objectMaps) {
-        const columns = getObjects(quads, om, `${RR}column`);
-        allReferencedColumns.push(...columns);
-      }
-    }
+        // Columns declared directly
+        getObjects(quads, om, `${RR}column`).forEach(recordColumn);
 
-    // Collect columns from subjectMap templates
-    for (const sm of subjectMaps) {
-      const templates = getObjects(quads, sm, `${RR}template`);
-      for (const tpl of templates) {
-        // Extract column references from template like "http://example.org/{id}"
-        const matches = tpl.match(/\{([^}]+)\}/g);
-        if (matches) {
-          allReferencedColumns.push(
-            ...matches.map((m) => m.slice(1, -1))
+        // ── IMPROVEMENT 4: Extract columns from objectMap templates ────────
+        getObjects(quads, om, `${RR}template`).forEach((tpl) =>
+          extractTemplateColumns(tpl).forEach(recordColumn)
+        );
+
+        // ── IMPROVEMENT 5: Validate rr:parentTriplesMap references ─────────
+        const parentRefs = getObjects(quads, om, `${RR}parentTriplesMap`);
+        for (const parentUri of parentRefs) {
+          if (!knownTriplesMapUris.has(parentUri)) {
+            issues.push({
+              level: "error",
+              message:
+                `rr:parentTriplesMap <${parentUri}> referenced from <${tm}> does not exist in this mapping. ` +
+                `Check for typos or a missing TriplesMap definition.`,
+            });
+          }
+        }
+
+        // Also validate joinCondition child/parent columns
+        const joinConditions = getObjects(quads, om, `${RR}joinCondition`);
+        for (const jc of joinConditions) {
+          getObjects(quads, jc, `${RR}child`).forEach(recordColumn);
+          // parent columns belong to the parent table — just track globally
+          getObjects(quads, jc, `${RR}parent`).forEach((c) =>
+            allReferencedColumns.push(c)
           );
         }
       }
-      const columns = getObjects(quads, sm, `${RR}column`);
-      allReferencedColumns.push(...columns);
     }
   }
 
   stats.referencedTables = [...new Set(allReferencedTables)];
   stats.referencedColumns = [...new Set(allReferencedColumns)];
 
-  // ── Level 3: Database Schema Cross-Check ───────────────────────────
+  // ── Level 3: Database Schema Cross-Check ──────────────────────────────────
   if (dbSchema && dbSchema.tables && dbSchema.tables.length > 0) {
     const dbTableNames = new Set(
       dbSchema.tables.map((t) => t.name.toLowerCase())
     );
+
+    // Build a table → column lookup for scoped column checking
     const dbColumnsByTable = new Map<string, Set<string>>();
     for (const table of dbSchema.tables) {
       dbColumnsByTable.set(
@@ -258,9 +336,8 @@ export async function validateR2rmlMapping(
       );
     }
 
-    // Check tables
+    // ── Check that every rr:tableName exists in the DB ─────────────────────
     for (const tableName of stats.referencedTables) {
-      // Handle quoted table names (e.g., "\"employees\"" → "employees")
       const cleaned = tableName.replace(/^"|"$/g, "").toLowerCase();
       if (!dbTableNames.has(cleaned)) {
         issues.push({
@@ -270,23 +347,26 @@ export async function validateR2rmlMapping(
       }
     }
 
-    // Check columns against their respective tables
-    // For a more precise check we'd need to know which column belongs to which table,
-    // but as a best-effort we check against all columns across all tables
-    const allDbColumns = new Set<string>();
-    for (const cols of dbColumnsByTable.values()) {
-      for (const c of cols) {
-        allDbColumns.add(c);
-      }
-    }
+    // ── IMPROVEMENT 1: Scoped column → table check (instead of global bag) ─
+    // For each table referenced by a TriplesMap, check only the columns that
+    // were collected under that specific TriplesMap's table.
+    for (const [tableName, columns] of tableToColumns.entries()) {
+      const cleanedTable = tableName.replace(/^"|"$/g, "").toLowerCase();
+      const dbCols = dbColumnsByTable.get(cleanedTable);
 
-    for (const colName of stats.referencedColumns) {
-      const cleaned = colName.replace(/^"|"$/g, "").toLowerCase();
-      if (!allDbColumns.has(cleaned)) {
-        issues.push({
-          level: "warning",
-          message: `Column "${colName}" referenced in mapping was not found in any database table.`,
-        });
+      if (!dbCols) {
+        // Table itself doesn't exist — already reported above, skip columns
+        continue;
+      }
+
+      for (const colName of columns) {
+        const cleanedCol = colName.replace(/^"|"$/g, "").toLowerCase();
+        if (!dbCols.has(cleanedCol)) {
+          issues.push({
+            level: "warning",
+            message: `Column "${colName}" referenced in mapping for table "${tableName}" was not found in that table's columns.`,
+          });
+        }
       }
     }
   }

@@ -5,7 +5,7 @@ import {
   createMcpResponse,
   extractSqlFromResponse,
   formatApiError,
-  isDangerousSql,
+  validateSelectOnlySql,
   prepareSqlForExecution,
 } from "../utils.js";
 import {
@@ -29,9 +29,8 @@ async function generateSqlInternal(params: {
   const connection = dbManager.getConnection(params.databaseId);
   const schemaContext = await adapter.buildSchemaContext();
 
-  const prompt = `You are an expert SQL generator for ${
-    connection.config.type === "supabase" ? "PostgreSQL (Supabase)" : "PostgreSQL"
-  }. Convert the following natural language query to a valid SQL query.
+  const prompt = `You are an expert SQL generator for ${connection.config.type === "supabase" ? "PostgreSQL (Supabase)" : "PostgreSQL"
+    }. Convert the following natural language query to a valid SQL query.
 
 ${schemaContext}
 
@@ -79,7 +78,7 @@ export async function handleListTables(args: Record<string, unknown>): Promise<M
     const { includeViews = true, schemaName = "public", databaseId } = listTablesSchema.parse(args);
 
     const connection = dbManager.getConnection(databaseId);
-    
+
     // Check if database is connected
     if (!connection.adapter.isConnected()) {
       return createMcpResponse(
@@ -185,10 +184,15 @@ export async function handleExecuteQuery(args: Record<string, unknown>): Promise
     const adapter = dbManager.getAdapter(databaseId);
     const connection = dbManager.getConnection(databaseId);
 
-    // Security check
-    if (isDangerousSql(sql)) {
+    // NFR-02: AST-based SQL validation — treat LLM output as untrusted input.
+    // Parse to AST and verify root node is strictly a SELECT statement.
+    const sqlValidation = validateSelectOnlySql(sql);
+    if (!sqlValidation.valid) {
       return createMcpResponse(
-        "⚠️ Potentially dangerous SQL operation detected. DROP, TRUNCATE, ALTER, CREATE, GRANT, and REVOKE operations are not allowed.",
+        `⛔ SQL Rejected (NFR-02): ${sqlValidation.reason}\n\n` +
+        `Only read-only SELECT queries are permitted. ` +
+        `Mutating commands (INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, GRANT, REVOKE, TRUNCATE) ` +
+        `and unparseable SQL are blocked before reaching the database.`,
         true
       );
     }

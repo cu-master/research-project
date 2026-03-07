@@ -100,7 +100,7 @@ npm install
    ```
 
 2. Edit `.env` and configure:
-   - LLM provider (Google or Anthropic)
+   - LLM provider (Google, Anthropic, or Groq)
    - API keys
    - Database connections (optional)
 
@@ -171,6 +171,15 @@ Set in `.env`:
 LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=your_api_key
 ANTHROPIC_MODEL=claude-3-haiku-20240307
+```
+
+### Groq
+
+Set in `.env`:
+```env
+LLM_PROVIDER=groq
+GROQ_API_KEY=your_api_key
+GROQ_MODEL=llama-3.3-70b-versatile
 ```
 
 ## Database Support

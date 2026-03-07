@@ -32,6 +32,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "n3": "^2.0.1",
+    "node-sql-parser": "^5.4.0",
     "pg": "^8.13.1",
     "sparqljs": "^3.7.4",
     "zod": "^3.25.76"
@@ -41,6 +42,7 @@
     "@types/express": "^5.0.0",
     "@types/n3": "^1.26.1",
     "@types/node": "^24.10.1",
+    "@types/node-sql-parser": "^1.0.0",
     "@types/pg": "^8.11.10",
     "@types/sparqljs": "^3.1.12",
     "concurrently": "^9.1.2",

@@ -110,6 +110,48 @@ async function callGoogle(
   return text;
 }
 
+async function callGroq(
+  config: LLMConfig,
+  prompt: string,
+  maxTokens: number,
+  temperature: number
+): Promise<string> {
+  if (!config.groqKey) {
+    throw new Error("GROQ_API_KEY environment variable is required.");
+  }
+
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.groqKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.groqModel,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: maxTokens,
+      temperature,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(
+      `Groq API request failed with HTTP ${response.status}: ${errorBody}`
+    );
+  }
+
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+
+  const text = data.choices?.[0]?.message?.content;
+  if (!text || !text.trim()) {
+    return "Unexpected response structure from Groq API.";
+  }
+  return text;
+}
+
 // ============================================================================
 // AI Provider Factory
 // ============================================================================
@@ -132,6 +174,9 @@ export function createAICaller(config: LLMConfig) {
 
     if (config.provider === "google") {
       return callGoogle(config, prompt, maxTokens, temperature);
+    }
+    if (config.provider === "groq") {
+      return callGroq(config, prompt, maxTokens, temperature);
     }
     return callAnthropic(config, prompt, maxTokens, temperature);
   };

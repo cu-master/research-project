@@ -171,8 +171,8 @@ Provides session management state and functions:
 
 Required environment variables:
 - `DATABASE_URL`: PostgreSQL connection string
-- `LLM_PROVIDER`: AI provider ('google', 'anthropic', or 'openai')
-- Provider-specific API keys (GOOGLE_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY)
+- `LLM_PROVIDER`: AI provider ('google', 'anthropic', 'openai', or 'groq')
+- Provider-specific API keys (GOOGLE_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, or GROQ_API_KEY)
 - `MODEL_INTERPRETATION_URL`: URL of model interpretation MCP server (default: http://localhost:3001)
 - `DATABASE_QUERY_URL`: URL of database query MCP server (default: http://localhost:3002)
 

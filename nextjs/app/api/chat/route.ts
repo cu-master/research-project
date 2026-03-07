@@ -88,12 +88,12 @@ export async function POST(request: Request) {
 
     const agent = await getAgent();
     const startTime = Date.now();
-    
+
     // Append default project context to the message if available
     const messagesToSend = projectContext
       ? [...chatHistory, new HumanMessage(messageContent + "\n\n" + projectContext)]
       : [...chatHistory, new HumanMessage(messageContent)];
-    
+
     const result = await runWithLangChainRequestContext(
       {
         sessionId: typeof sessionId === "string" ? sessionId : undefined,
@@ -101,9 +101,12 @@ export async function POST(request: Request) {
         userId,
       },
       async () =>
-        agent.invoke({
-          messages: messagesToSend,
-        })
+        agent.invoke(
+          { messages: messagesToSend },
+          // Safety backstop: if the system prompt instruction to stop on NFR-02
+          // rejection is not followed, cut the loop short at 10 iterations.
+          { recursionLimit: 10 }
+        )
     );
     const endTime = Date.now();
     const latency = (endTime - startTime) / 1000;
@@ -149,7 +152,7 @@ export async function POST(request: Request) {
       try {
         console.log(`[DB] Saving messages to database for session: ${sessionId}`);
         console.log(`[DB] User message length: ${safeMessage.length}, Assistant response length: ${finalResponse.length}`);
-        
+
         const session = await getSession(sessionId, userId);
         if (!session) {
           console.error(`[DB] Session ${sessionId} does not exist or not owned by user!`);
@@ -185,7 +188,7 @@ export async function POST(request: Request) {
           message: dbError instanceof Error ? dbError.message : String(dbError),
           stack: dbError instanceof Error ? dbError.stack : undefined,
         });
-        
+
         // Check if it's a connection error
         if (dbError instanceof Error) {
           if (dbError.message.includes("DATABASE_URL") || dbError.message.includes("connection")) {
@@ -212,6 +215,23 @@ export async function POST(request: Request) {
 
     let errorMessage = "An error occurred while processing your request.";
     if (error instanceof Error) {
+      // NFR-02: Agent tried to retry a rejected mutating SQL query and hit the loop limit.
+      // Return a clean 400 with an explanation instead of a 500.
+      if (
+        (error as Error & { lc_error_code?: string }).lc_error_code === "GRAPH_RECURSION_LIMIT" ||
+        error.message.includes("GRAPH_RECURSION_LIMIT") ||
+        error.message.includes("Recursion limit")
+      ) {
+        return NextResponse.json(
+          {
+            response:
+              "I'm sorry, but I can't perform that operation. " +
+              "This system only allows read-only SELECT queries — write operations such as DELETE, INSERT, UPDATE, DROP, and ALTER are not permitted.",
+            error: "Operation not permitted",
+          },
+          { status: 400 }
+        );
+      }
       if (error.message.includes("invalid_request_error")) {
         errorMessage =
           "There was an issue with the AI service. Please try starting a new conversation.";

@@ -15,7 +15,9 @@ export interface AppConfig {
   provider: import("../shared/types.js").LLMProvider;
   anthropicKey: string | undefined;
   googleKey: string | undefined;
+  groqKey: string | undefined;
   anthropicModel: string;
   googleModel: string;
+  groqModel: string;
   port: number;
 }

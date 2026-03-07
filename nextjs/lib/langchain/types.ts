@@ -33,5 +33,5 @@ export interface McpToolResponse {
 
 export type LangChainMessage = HumanMessage | AIMessage;
 
-export type ModelProvider = "google" | "anthropic" | "openai";
+export type ModelProvider = "google" | "anthropic" | "openai" | "groq";
 

@@ -552,9 +552,13 @@ export async function handleObdaQuery(
     const sparqlQuery = extractSparqlFromResponse(llmResponse);
 
     if (!sparqlQuery || !looksLikeSparql(sparqlQuery)) {
+      const debugDetails = includeDebugContext
+        ? `\n\nLLM output:\n${llmResponse}`
+        : "";
       return createMcpResponse(
         `Error: Could not generate a valid SPARQL query for: "${userQuery}".\n\n` +
-          `LLM output:\n${llmResponse}`,
+          `Try rephrasing your question and trying again.` +
+          debugDetails,
         true
       );
     }
@@ -568,6 +572,9 @@ export async function handleObdaQuery(
     );
 
     if (!validation.valid) {
+      const debugDetails = includeDebugContext
+        ? `\n\n**Generated SPARQL:**\n\`\`\`sparql\n${sparqlQuery}\n\`\`\``
+        : "";
       const errorMsg =
         `Error: Generated SPARQL failed validation:\n\n` +
         validation.errors.map((e) => `- ${e}`).join("\n") +
@@ -575,8 +582,8 @@ export async function handleObdaQuery(
           ? `\n\nWarnings:\n` +
             validation.warnings.map((w) => `- ${w}`).join("\n")
           : "") +
-        `\n\n**Generated SPARQL:**\n\`\`\`sparql\n${sparqlQuery}\n\`\`\`\n\n` +
-        `Try rephrasing your question or regenerating the R2RML mapping.`;
+        `\n\nTry rephrasing your question or regenerating the R2RML mapping.` +
+        debugDetails;
       return createMcpResponse(errorMsg, true);
     }
 
@@ -593,11 +600,14 @@ export async function handleObdaQuery(
       sparqlResults = await executeSparql(sparqlQuery, ontopSparqlUrl);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
+      const debugDetails = includeDebugContext
+        ? `\n\n**Generated SPARQL:**\n\`\`\`sparql\n${sparqlQuery}\n\`\`\``
+        : "";
       return createMcpResponse(
         `Error executing SPARQL via Ontop: ${msg}\n\n` +
-          `**Generated SPARQL:**\n\`\`\`sparql\n${sparqlQuery}\n\`\`\`\n\n` +
           `This may indicate an issue with the R2RML mapping or the SPARQL query. ` +
-          `Try regenerating the R2RML mapping or rephrasing your question.`,
+          `Try regenerating the R2RML mapping or rephrasing your question.` +
+          debugDetails,
         true
       );
     }
@@ -609,16 +619,17 @@ export async function handleObdaQuery(
     let output = `# OBDA Query Results (Ontop)\n\n`;
     output += `**Query:** ${userQuery}\n`;
     output += `**Results:** ${summary}\n\n`;
-    output += `## Generated SPARQL\n\n\`\`\`sparql\n${sparqlQuery}\n\`\`\`\n\n`;
-
-    if (sqlTranslation) {
-      output += `## Generated SQL (via R2RML)\n\n\`\`\`sql\n${sqlTranslation.trim()}\n\`\`\`\n\n`;
-    }
 
     output += `## Results (Ontology Terms)\n\n${resultsTable}\n`;
     output += `\n## Answer\n\nHere are the results for: "${userQuery}".\n`;
 
     if (includeDebugContext) {
+      output += `\n## Debug: Generated SPARQL\n\n\`\`\`sparql\n${sparqlQuery}\n\`\`\`\n`;
+
+      if (sqlTranslation) {
+        output += `\n## Debug: Generated SQL (via R2RML)\n\n\`\`\`sql\n${sqlTranslation.trim()}\n\`\`\`\n`;
+      }
+
       output += `\n## Debug: Raw SPARQL JSON\n\n\`\`\`json\n${JSON.stringify(sparqlResults, null, 2)}\n\`\`\`\n`;
     }
 

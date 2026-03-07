@@ -43,6 +43,24 @@ export function createModel(options?: CreateModelOptions): BaseChatModel {
       });
     }
 
+    case "groq": {
+      const apiKey = process.env.GROQ_API_KEY;
+      const modelName =
+        options?.model || process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+      if (!apiKey) {
+        throw new Error("Missing GROQ_API_KEY for Groq provider.");
+      }
+      console.log(`Using Groq model: ${modelName}`);
+      return new ChatOpenAI({
+        apiKey,
+        model: modelName,
+        configuration: {
+          baseURL: "https://api.groq.com/openai/v1",
+        },
+        temperature: options?.temperature,
+      });
+    }
+
     case "google":
     default: {
       const apiKey = process.env.GOOGLE_API_KEY;
