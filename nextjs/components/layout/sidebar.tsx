@@ -13,7 +13,6 @@ export default function Sidebar() {
   const {
     currentSessionId,
     setCurrentSessionId,
-    sessions,
     refreshSessions,
     hasUnsavedWork,
   } = useSession();
@@ -48,7 +47,7 @@ export default function Sidebar() {
           const sessionData = await sessionResponse.json();
           const session = sessionData.session;
           const messages = sessionData.messages || [];
-          
+
           // Only archive if session is active (not already archived) and has messages
           if (session && !session.is_archived && messages.length > 0) {
             await fetch("/api/sessions/archive", {
@@ -71,7 +70,7 @@ export default function Sidebar() {
       router.replace("/", { scroll: false });
       // Then clear session context - this will trigger message reset in ChatSurface
       setCurrentSessionId(null);
-      
+
       // Only refresh sessions if we actually made a change (archived a session)
       // This prevents unnecessary reordering when just viewing old sessions
       if (shouldRefreshSessions) {
@@ -193,7 +192,7 @@ export default function Sidebar() {
           await fetch("/api/sessions/clear-store", {
             method: "POST",
           });
-          
+
           // Clear current session
           setCurrentSessionId(null);
           router.replace("/", { scroll: false });
@@ -221,17 +220,15 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-50 hidden flex-col bg-gray-50 text-gray-900 border-r border-gray-200 md:flex transition-all duration-300 ease-in-out overflow-x-hidden ${
-        isCollapsed ? "w-16" : "w-64"
-      }`}
+      className={`fixed inset-y-0 left-0 z-50 hidden flex-col bg-gray-50 text-gray-900 border-r border-gray-200 md:flex transition-all duration-300 ease-in-out overflow-x-hidden ${isCollapsed ? "w-16" : "w-64"
+        }`}
     >
       {/* New Chat & Projects navigation */}
       <div className="px-2 pt-3 pb-1 flex flex-col gap-0.5">
         <button
           onClick={handleNewChat}
-          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200/50 hover:text-gray-900 ${
-            isCollapsed ? "justify-center" : ""
-          }`}
+          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200/50 hover:text-gray-900 ${isCollapsed ? "justify-center" : ""
+            }`}
           title="New chat"
         >
           <PencilSquareIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
@@ -239,9 +236,8 @@ export default function Sidebar() {
         </button>
         <Link
           href={"/projects" as any}
-          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200/50 hover:text-gray-900 ${
-            isCollapsed ? "justify-center" : ""
-          }`}
+          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200/50 hover:text-gray-900 ${isCollapsed ? "justify-center" : ""
+            }`}
           title="Projects"
         >
           <FolderIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
@@ -261,21 +257,18 @@ export default function Sidebar() {
           {activeSessions.map((session) => (
             <div
               key={session.id}
-              className={`group flex items-center gap-1 rounded-lg transition-colors ${
-                currentSessionId === session.id
+              className={`group flex items-center gap-1 rounded-lg transition-colors ${currentSessionId === session.id
                   ? "bg-gray-200/70"
                   : "hover:bg-gray-200/50"
-              }`}
+                }`}
             >
               <button
                 onClick={() => handleSessionClick(session.id)}
-                className={`flex flex-1 items-center rounded-lg px-3 py-2.5 text-sm text-gray-700 hover:text-gray-900 min-w-0 ${
-                  isCollapsed ? "justify-center" : ""
-                } ${
-                  currentSessionId === session.id
+                className={`flex flex-1 items-center rounded-lg px-3 py-2.5 text-sm text-gray-700 hover:text-gray-900 min-w-0 ${isCollapsed ? "justify-center" : ""
+                  } ${currentSessionId === session.id
                     ? "font-medium"
                     : ""
-                }`}
+                  }`}
                 title={session.title || "Untitled Chat"}
               >
                 {!isCollapsed && (
@@ -295,26 +288,23 @@ export default function Sidebar() {
               )}
             </div>
           ))}
-          
+
           {/* Show archived sessions */}
           {archivedSessions.slice(0, 10).map((session) => (
             <div
               key={session.id}
-              className={`group flex items-center gap-1 rounded-lg transition-colors ${
-                currentSessionId === session.id
+              className={`group flex items-center gap-1 rounded-lg transition-colors ${currentSessionId === session.id
                   ? "bg-gray-200/70"
                   : "hover:bg-gray-200/50"
-              }`}
+                }`}
             >
               <button
                 onClick={() => handleSessionClick(session.id)}
-                className={`flex flex-1 items-center rounded-lg px-3 py-2.5 text-sm text-gray-700 hover:text-gray-900 min-w-0 ${
-                  isCollapsed ? "justify-center" : ""
-                } ${
-                  currentSessionId === session.id
+                className={`flex flex-1 items-center rounded-lg px-3 py-2.5 text-sm text-gray-700 hover:text-gray-900 min-w-0 ${isCollapsed ? "justify-center" : ""
+                  } ${currentSessionId === session.id
                     ? "font-medium"
                     : ""
-                }`}
+                  }`}
                 title={session.title || "Untitled Chat"}
               >
                 {!isCollapsed && (
@@ -334,7 +324,7 @@ export default function Sidebar() {
               )}
             </div>
           ))}
-          
+
           {activeSessions.length === 0 && archivedSessions.length === 0 && !isCollapsed && (
             <div className="px-3 py-2 text-xs text-gray-400">
               No chat history yet

@@ -22,10 +22,8 @@ export {
 
 // Combined tools array for agent
 import {
-  generateSqlTool,
   listTablesTool,
   getTableSchemaTool,
-  executeQueryTool,
   getSampleQueriesTool,
 } from "./database-query-tools";
 import { obdaQueryWithOntopTool } from "./obda-query-tool";
@@ -45,11 +43,9 @@ export const allTools = [
   answerQueryTool,
   summarizeContentTool,
   explainMappingTool,
-  // Database query tools
-  generateSqlTool,
+  // Database query tools (database_generate_sql and database_execute_query disabled)
   listTablesTool,
   getTableSchemaTool,
-  executeQueryTool,
   getSampleQueriesTool,
 ];
 

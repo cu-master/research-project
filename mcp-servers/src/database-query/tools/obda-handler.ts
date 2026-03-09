@@ -31,7 +31,8 @@ interface DbConfig {
   ssl: boolean;
 }
 
-function buildPropertiesContent(dbConfig: DbConfig): string {
+/** @internal exported for unit testing */
+export function buildPropertiesContent(dbConfig: DbConfig): string {
   let host = dbConfig.host || "localhost";
   const port = dbConfig.port || 5432;
   const database = dbConfig.database || "postgres";
@@ -189,13 +190,15 @@ ${r2rmlMapping}
 Generate the SPARQL SELECT query:`;
 }
 
-function extractSparqlFromResponse(text: string): string {
+/** @internal exported for unit testing */
+export function extractSparqlFromResponse(text: string): string {
   const block = text.match(/```(?:sparql)?\s*\n([\s\S]*?)\n```/i);
   if (block?.[1]) return block[1].trim();
   return text.trim();
 }
 
-function looksLikeSparql(q: string): boolean {
+/** @internal exported for unit testing */
+export function looksLikeSparql(q: string): boolean {
   const u = q.toUpperCase();
   return (
     (u.includes("SELECT") || u.includes("ASK") || u.includes("CONSTRUCT")) &&
@@ -225,7 +228,8 @@ interface SparqlValidationResult {
   sqlTranslation?: string;
 }
 
-function validateSyntax(sparql: string): { valid: boolean; error?: string } {
+/** @internal exported for unit testing */
+export function validateSyntax(sparql: string): { valid: boolean; error?: string } {
   try {
     const parser = new SparqlParser();
     parser.parse(sparql);
@@ -295,7 +299,8 @@ function collectNamedNodes(obj: unknown): string[] {
   return uris;
 }
 
-function crossCheckPredicates(
+/** @internal exported for unit testing */
+export function crossCheckPredicates(
   sparqlUris: string[],
   mappedClasses: Set<string>,
   mappedPredicates: Set<string>
@@ -312,7 +317,7 @@ function crossCheckPredicates(
     alreadyWarned.add(uri);
     warnings.push(
       `URI <${uri}> used in SPARQL is not found in the R2RML mapping. ` +
-        `Query may return no results for this term.`
+      `Query may return no results for this term.`
     );
   }
 
@@ -442,7 +447,8 @@ async function executeSparql(
   return (await response.json()) as SparqlResults;
 }
 
-function shortenUri(uri: string): string {
+/** @internal exported for unit testing */
+export function shortenUri(uri: string): string {
   const hashIdx = uri.lastIndexOf("#");
   if (hashIdx !== -1 && hashIdx < uri.length - 1) {
     return uri.substring(hashIdx + 1);
@@ -459,7 +465,8 @@ function shortenUri(uri: string): string {
   }
 }
 
-function formatSparqlResultsAsOntologyTerms(results: SparqlResults): string {
+/** @internal exported for unit testing */
+export function formatSparqlResultsAsOntologyTerms(results: SparqlResults): string {
   const vars = results.head.vars;
   const bindings = results.results.bindings;
 
@@ -493,7 +500,8 @@ function formatSparqlResultsAsOntologyTerms(results: SparqlResults): string {
   return table;
 }
 
-function summarizeSparqlResults(results: SparqlResults): string {
+/** @internal exported for unit testing */
+export function summarizeSparqlResults(results: SparqlResults): string {
   const count = results.results.bindings.length;
   const vars = results.head.vars;
   return `${count} result(s) with columns: ${vars.join(", ")}`;
@@ -535,7 +543,7 @@ export async function handleObdaQuery(
     if (!ontopReady) {
       return createMcpResponse(
         "Error: Ontop SPARQL endpoint is not ready after configuration. " +
-          "Make sure Docker is running and the Ontop container can start.",
+        "Make sure Docker is running and the Ontop container can start.",
         true
       );
     }
@@ -557,8 +565,8 @@ export async function handleObdaQuery(
         : "";
       return createMcpResponse(
         `Error: Could not generate a valid SPARQL query for: "${userQuery}".\n\n` +
-          `Try rephrasing your question and trying again.` +
-          debugDetails,
+        `Try rephrasing your question and trying again.` +
+        debugDetails,
         true
       );
     }
@@ -580,7 +588,7 @@ export async function handleObdaQuery(
         validation.errors.map((e) => `- ${e}`).join("\n") +
         (validation.warnings.length > 0
           ? `\n\nWarnings:\n` +
-            validation.warnings.map((w) => `- ${w}`).join("\n")
+          validation.warnings.map((w) => `- ${w}`).join("\n")
           : "") +
         `\n\nTry rephrasing your question or regenerating the R2RML mapping.` +
         debugDetails;
@@ -605,9 +613,9 @@ export async function handleObdaQuery(
         : "";
       return createMcpResponse(
         `Error executing SPARQL via Ontop: ${msg}\n\n` +
-          `This may indicate an issue with the R2RML mapping or the SPARQL query. ` +
-          `Try regenerating the R2RML mapping or rephrasing your question.` +
-          debugDetails,
+        `This may indicate an issue with the R2RML mapping or the SPARQL query. ` +
+        `Try regenerating the R2RML mapping or rephrasing your question.` +
+        debugDetails,
         true
       );
     }

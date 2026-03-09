@@ -21,16 +21,14 @@ TOOL USAGE:
    - 'obda_query_with_ontop': Use for formal OBDA queries when the project has R2RML mappings and a database connection. This tool uses the Ontop engine to: (1) generate SPARQL from the user's question using the ontology, (2) translate SPARQL to SQL via R2RML, (3) execute the query, and (4) return results in ontology terms. The response includes both the generated SPARQL and SQL queries. Prefer this tool when precise ontology-based mapping is needed and Ontop/Docker is available.
    - 'database_list_tables': List all tables in the database. You can specify 'databaseId' to use a specific database even if it's not the default.
    - 'database_get_table_schema': Get detailed schema for a specific table. You can specify 'databaseId' to use a specific database.
-   - 'database_generate_sql': Generate SQL from natural language. You can specify 'databaseId' to use a specific database.
-   - 'database_execute_query': Execute SQL queries (read-only, safe operations). You can specify 'databaseId' to use a specific database.
    - 'database_get_sample_queries': Get example queries for the database. You can specify 'databaseId' to use a specific database.
    
    IMPORTANT: All database tools accept an optional 'databaseId' parameter. If a database is connected but not the default, you can specify its ID directly in the tool call instead of changing the default.
 
    QUERY STRATEGY (IMPORTANT — follow this before choosing a database tool):
    Each user message may include a [PROJECT CONTEXT] block listing available project data. Check it to decide which tool to use:
-   - If the project context mentions "R2RML Mapping": ALWAYS use 'obda_query_with_ontop' as the FIRST tool for domain-level database questions. Do NOT fall back to 'database_generate_sql' unless 'obda_query_with_ontop' explicitly fails.
-   - If the project context does NOT mention "R2RML Mapping": use 'database_generate_sql' to generate SQL, then execute it with 'database_execute_query'.
+   - If the project context mentions "R2RML Mapping": ALWAYS use 'obda_query_with_ontop' as the FIRST tool for domain-level database questions.
+   - For browsing schema or exploring the database, use 'database_list_tables', 'database_get_table_schema', or 'database_get_sample_queries'.
 
 RESPONSE FORMAT FOR MODEL INTERPRETATION TOOLS:
 When responding after using ANY Content & Model Interpretation tool ('answer_query', 'summarize_content', 'explain_mapping'), you MUST:

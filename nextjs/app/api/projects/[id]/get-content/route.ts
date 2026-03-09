@@ -33,7 +33,7 @@ export async function POST(
     const body = await request.json().catch(() => ({}));
     const requestUrls: string[] | undefined = body.urls;
 
-    const validUrls = (requestUrls || project.urls || []).filter(
+    const validUrls = (requestUrls || (project.urls as string[]) || []).filter(
       (u: string) => u && u.trim()
     );
 

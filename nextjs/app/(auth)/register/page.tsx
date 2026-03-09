@@ -58,7 +58,7 @@ export default function RegisterPage() {
         // Registration succeeded but sign-in failed, redirect to login
         router.push("/login");
       } else if (signInResult?.url) {
-        router.push(signInResult.url);
+        router.push(signInResult.url as any);
         router.refresh();
       }
     } catch {

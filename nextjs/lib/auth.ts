@@ -25,12 +25,10 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // Return user object (never include password_hash)
         return {
           id: user.id,
           name: user.name,
           email: user.email,
-          image: user.image,
         };
       },
     }),

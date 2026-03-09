@@ -1,4 +1,5 @@
-import { Parser } from "node-sql-parser";
+import NodeSqlParser from "node-sql-parser";
+const { Parser } = NodeSqlParser;
 
 // Re-export shared utilities
 export { createMcpResponse, formatApiError } from "../shared/utils.js";
@@ -110,15 +111,6 @@ export function validateSelectOnlySql(sql: string): SqlValidationResult {
   return { valid: true, statementType: "select" };
 }
 
-/**
- * @deprecated Use validateSelectOnlySql() instead (NFR-02 compliant).
- * Kept temporarily to avoid build breakage; callers in handlers.ts have been updated.
- */
-export function isDangerousSql(sql: string): boolean {
-  const result = validateSelectOnlySql(sql);
-  // Dangerous = anything that is not a valid SELECT
-  return !result.valid;
-}
 
 export function prepareSqlForExecution(sql: string, limit: number): string {
   let finalSql = sql

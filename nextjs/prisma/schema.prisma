@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Schema {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String?  @db.Text
+  content    String   @db.Text
+  format     String?  @db.Text
+  url        String?  @db.Text
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  metadata   Json?
+
+  @@map("schemas")
+}
+
+model Project {
+  id            String   @id @default(uuid()) @db.Uuid
+  user_id       String   @db.Uuid
+  name          String   @db.Text
+  urls          Json?    @default("[]")
+  content       String?  @default("")
+  db_type       String?  @db.Text
+  db_name       String?  @db.Text
+  db_host       String?  @db.Text
+  db_port       Int?
+  db_database   String?  @db.Text
+  db_user       String?  @db.Text
+  db_password   String?  @db.Text
+  db_ssl        Boolean? @default(false)
+  db_schema     Json?
+  r2rml_mapping String?  @db.Text
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  owner             User      @relation("UserProjects", fields: [user_id], references: [id], onDelete: Cascade)
+  default_for_users User[]    @relation("DefaultProject")
+  sessions          Session[]
+
+  @@map("projects")
+}
+
+model User {
+  id                 String   @id @default(uuid()) @db.Uuid
+  name               String?  @db.VarChar(255)
+  email              String   @unique @db.VarChar(255)
+  password_hash      String   @db.VarChar(255)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  default_project_id String?  @db.Uuid
+
+  default_project Project?  @relation("DefaultProject", fields: [default_project_id], references: [id], onDelete: SetNull)
+  projects        Project[] @relation("UserProjects")
+  sessions        Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id            String    @id @default(uuid()) @db.Uuid
+  user_id       String?   @db.Uuid
+  project_id    String?   @db.Uuid
+  title         String?   @db.Text
+  is_archived   Boolean?  @default(false)
+  message_count Int?      @default(0)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  archived_at   DateTime? @db.Timestamptz(6)
+
+  user     User?     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  project  Project?  @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  messages Message[]
+
+  @@map("sessions")
+}
+
+model Message {
+  id          String   @id @default(uuid()) @db.Uuid
+  session_id  String   @db.Uuid
+  role        String   @db.VarChar(20)
+  content     String   @db.Text
+  attachments Json?
+  tools_used  Json?
+  latency     Decimal?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  session Session @relation(fields: [session_id], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}

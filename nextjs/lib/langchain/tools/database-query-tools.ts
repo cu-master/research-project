@@ -15,7 +15,7 @@ async function resolveProjectDatabaseId(): Promise<string | null> {
   const project = await getProject(projectId, userId);
   if (!project) return null;
 
-  return ensureProjectDatabase(project);
+  return ensureProjectDatabase({ ...project, db_ssl: project.db_ssl ?? false } as any);
 }
 
 // ============================================================================

@@ -5,6 +5,11 @@
   "main": "dist/index.js",
   "description": "MCP servers for AI-powered model interpretation and database querying",
   "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:all": "npm test && npm run test:integration",
     "start": "tsx src/model-interpretation/index.ts",
     "start:db": "tsx src/database-query/index.ts",
     "start:all": "concurrently \"npm run start\" \"npm run start:db\"",
@@ -38,15 +43,18 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^11.12.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/n3": "^1.26.1",
     "@types/node": "^24.10.1",
-    "@types/node-sql-parser": "^1.0.0",
     "@types/pg": "^8.11.10",
     "@types/sparqljs": "^3.1.12",
+    "@types/supertest": "^7.2.0",
     "concurrently": "^9.1.2",
+    "supertest": "^7.2.2",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   }
 }
