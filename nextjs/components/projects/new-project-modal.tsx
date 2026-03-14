@@ -158,6 +158,7 @@ export default function ProjectModal({
         setDbSsl(false);
         setSchemaData(null);
         setR2rmlMapping(null);
+        setAlignmentResult(null);
       }
       setError("");
       setContentStatus("");
@@ -1179,51 +1180,6 @@ export default function ProjectModal({
                   </p>
                 )}
 
-                {/* Matched / Unmatched concepts */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                  <div>
-                    <span className="font-medium text-gray-600">Matched:</span>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {alignmentResult.matchedConcepts.length > 0 ? (
-                        alignmentResult.matchedConcepts.map((c, i) => (
-                          <span key={i} className="rounded bg-green-100 px-1.5 py-0.5 text-green-800">
-                            {c}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-gray-400 italic">None</span>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-600">Ontology only:</span>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {alignmentResult.unmatchedOntology.length > 0 ? (
-                        alignmentResult.unmatchedOntology.map((c, i) => (
-                          <span key={i} className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600">
-                            {c}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-gray-400 italic">None</span>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-600">Database only:</span>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {alignmentResult.unmatchedDatabase.length > 0 ? (
-                        alignmentResult.unmatchedDatabase.map((c, i) => (
-                          <span key={i} className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600">
-                            {c}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-gray-400 italic">None</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
 
                 {/* Mismatch notice */}
                 {alignmentResult.recommendation === "mismatch" && (
