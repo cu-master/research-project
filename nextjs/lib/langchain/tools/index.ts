@@ -1,9 +1,7 @@
 // Database query tools
 export {
-  generateSqlTool,
   listTablesTool,
   getTableSchemaTool,
-  executeQueryTool,
   getSampleQueriesTool,
 } from "./database-query-tools";
 
@@ -43,7 +41,7 @@ export const allTools = [
   answerQueryTool,
   summarizeContentTool,
   explainMappingTool,
-  // Database query tools (database_generate_sql and database_execute_query disabled)
+  // Database query tools
   listTablesTool,
   getTableSchemaTool,
   getSampleQueriesTool,

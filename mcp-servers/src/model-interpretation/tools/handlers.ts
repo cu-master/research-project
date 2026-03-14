@@ -145,16 +145,59 @@ Output requirements:
 - Be concise and specific.
 - Use ONLY concepts present in the content.
 - Prefer the domain language (conceptual names), not physical DB names.
-- Include:
-  1) Entities (classes) involved
-  2) Key attributes needed to answer the query
-  3) Relationships between those entities (with relationship names if present)
-- Return plain text, no JSON, no markdown code blocks.
+- Output a structured JSON object representing the extracted schema.
 
-Return the conceptual definition now.`;
+Return a JSON object with this exact structure:
+{
+  "entities": ["array of exact entity names"],
+  "attributes": ["array of key attributes needed"],
+  "relationships": ["array of relationship descriptions (e.g., 'Order connects to Customer')"],
+  "summary": "a single focused sentence summarizing the relevant concepts"
+}
 
-    const conceptualDefinition = await callAI(prompt, 1200);
-    return createMcpResponse(conceptualDefinition.trim());
+Return ONLY the JSON object, no additional text or markdown formatting.`;
+
+    const aiResponse = await callAI(prompt, 1200);
+    console.log(`[ConceptualDefinition] Output:\n${aiResponse}`);
+
+    let parsed: {
+      entities: string[];
+      attributes: string[];
+      relationships: string[];
+      summary: string;
+    };
+
+    try {
+      let jsonString = aiResponse.trim();
+      jsonString = jsonString
+        .replace(/^```(?:json)?\s*\n?/i, "")
+        .replace(/\n?\s*```$/i, "");
+      const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error("No JSON object found in response");
+      }
+    } catch {
+      console.warn(`[ConceptualDefinition] Failed to parse structured response, using raw text`);
+      return createMcpResponse(aiResponse);
+    }
+
+    let responseText = `**Conceptual Summary:** ${parsed.summary}\n\n`;
+    
+    if (parsed.entities.length > 0) {
+      responseText += `**Entities:**\n${parsed.entities.map(e => `- ${e}`).join("\\n")}\n\n`;
+    }
+    
+    if (parsed.attributes.length > 0) {
+      responseText += `**Attributes:**\n${parsed.attributes.map(a => `- ${a}`).join("\\n")}\n\n`;
+    }
+
+    if (parsed.relationships.length > 0) {
+      responseText += `**Relationships:**\n${parsed.relationships.map(r => `- ${r}`).join("\\n")}\n`;
+    }
+
+    return createMcpResponse(responseText.trim());
   } catch (error) {
     return createMcpResponse(
       `Error creating conceptual definition: ${formatApiError(error)}`,

@@ -1,0 +1,70 @@
+[
+  {
+    "id": "P01",
+    "category": "positive",
+    "subtype": "simple_retrieval",
+    "prompt": "List customer_id and name from customers ordered by customer_id.",
+    "repeat": 2,
+    "expectation": {
+      "behavior": "sql",
+      "sqlMustContain": ["select", "from customers", "customer_id", "name"]
+    }
+  },
+  {
+    "id": "P02",
+    "category": "positive",
+    "subtype": "simple_retrieval",
+    "prompt": "Show product_id, name, and current_price for products sorted by product_id.",
+    "repeat": 2,
+    "expectation": {
+      "behavior": "sql",
+      "sqlMustContain": ["select", "from products", "product_id", "current_price"]
+    }
+  },
+  {
+    "id": "P05",
+    "category": "positive",
+    "subtype": "complex_join",
+    "prompt": "List each order_id with the customer name for that order.",
+    "repeat": 2,
+    "expectation": {
+      "behavior": "sql",
+      "sqlMustContain": ["from orders", "join customers", "order_id", "name"]
+    }
+  },
+  {
+    "id": "P06",
+    "category": "positive",
+    "subtype": "complex_join",
+    "prompt": "Show order_id, product name, and quantity by joining order_items with products.",
+    "repeat": 2,
+    "expectation": {
+      "behavior": "sql",
+      "sqlMustContain": ["from order_items", "join products", "quantity", "name"]
+    }
+  },
+  {
+    "id": "P08",
+    "category": "positive",
+    "subtype": "aggregation",
+    "prompt": "Count total customers and return the column alias exactly as customer_count.",
+    "repeat": 2,
+    "expectation": {
+      "behavior": "sql",
+      "sqlMustContain": ["count", "from customers", "customer_count"],
+      "expectedResultSignature": "[{\"customer_count\":\"3\"}]"
+    }
+  },
+  {
+    "id": "P09",
+    "category": "positive",
+    "subtype": "aggregation",
+    "prompt": "Count total orders and return the alias exactly as order_count.",
+    "repeat": 2,
+    "expectation": {
+      "behavior": "sql",
+      "sqlMustContain": ["count", "from orders", "order_count"],
+      "expectedResultSignature": "[{\"order_count\":\"2\"}]"
+    }
+  }
+]

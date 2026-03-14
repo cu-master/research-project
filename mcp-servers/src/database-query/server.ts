@@ -123,7 +123,7 @@ app.get("/databases", (_req: Request, res: Response) => {
 });
 
 app.post("/databases", async (req: Request, res: Response) => {
-  const { id, name, type, host, port, database, user, password, ssl, url, serviceKey } = req.body;
+  const { id, name, type, host, port, database, user, password, ssl } = req.body;
 
   if (!id || !type) {
     res.status(400).json({ error: "'id' and 'type' are required" });
@@ -160,16 +160,6 @@ app.post("/databases", async (req: Request, res: Response) => {
         user,
         password: password || "",
         ssl: ssl ?? false,
-      });
-    } else if (type === "supabase") {
-      if (!url || !serviceKey) {
-        res.status(400).json({ error: "'url' and 'serviceKey' are required for supabase" });
-        return;
-      }
-      dbManager.registerDatabase(id, name || id, {
-        type: "supabase",
-        url,
-        serviceKey,
       });
     } else {
       res.status(400).json({ error: `Unknown database type: ${type}` });

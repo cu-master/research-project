@@ -83,7 +83,6 @@ describe("GET /tools", () => {
         const names: string[] = res.body.tools.map((t: { name: string }) => t.name);
         expect(names).toContain("list-tables");
         expect(names).toContain("get-table-schema");
-        expect(names).toContain("execute-query");
     });
 });
 
@@ -113,14 +112,6 @@ describe("POST /databases", () => {
             .send({ name: "missing-id" });
         expect(res.status).toBe(400);
         expect(res.body.error).toMatch(/'id' and 'type'/i);
-    });
-
-    it("returns 400 for supabase type without url/serviceKey", async () => {
-        const res = await request(app)
-            .post("/databases")
-            .send({ id: "sb-test", type: "supabase" });
-        expect(res.status).toBe(400);
-        expect(res.body.error).toMatch(/url.*serviceKey/i);
     });
 
     it("returns 400 for postgresql type without host/database/user", async () => {
@@ -196,52 +187,6 @@ describe("POST /tools/get-table-schema/call", () => {
     });
 });
 
-// ── POST /tools/execute-query/call ───────────────────────────────────────────
-
-describe("POST /tools/execute-query/call", () => {
-    it("executes a SELECT and returns rows", async () => {
-        const res = await request(app)
-            .post("/tools/execute-query/call")
-            .send({
-                arguments: {
-                    sql: "SELECT * FROM test_items ORDER BY id",
-                    databaseId: DB_ID,
-                },
-            });
-        expect(res.status).toBe(200);
-        const text: string = res.body.content?.[0]?.text ?? "";
-        expect(text).toContain("alpha");
-        expect(text).toContain("beta");
-    });
-
-    it("blocks a DELETE query (NFR-02)", async () => {
-        const res = await request(app)
-            .post("/tools/execute-query/call")
-            .send({
-                arguments: {
-                    sql: "DELETE FROM test_items WHERE id = 1",
-                    databaseId: DB_ID,
-                },
-            });
-        expect(res.status).toBe(200);
-        const text: string = res.body.content?.[0]?.text ?? "";
-        expect(text).toContain("NFR-02");
-        expect(res.body.isError).toBe(true);
-    });
-
-    it("blocks a DROP TABLE query (NFR-02)", async () => {
-        const res = await request(app)
-            .post("/tools/execute-query/call")
-            .send({
-                arguments: {
-                    sql: "DROP TABLE test_items",
-                    databaseId: DB_ID,
-                },
-            });
-        expect(res.status).toBe(200);
-        expect(res.body.isError).toBe(true);
-    });
-});
 
 // ── POST /mcp/list-tools ──────────────────────────────────────────────────────
 

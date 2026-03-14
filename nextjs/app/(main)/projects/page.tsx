@@ -18,6 +18,7 @@ interface Project {
   db_ssl: boolean;
   db_schema: Record<string, unknown> | null;
   r2rml_mapping: string | null;
+  alignment_result?: any;
   created_at: string;
   updated_at: string;
 }

@@ -30,7 +30,7 @@ The AI Chatbot System enables non-expert users to interpret structured data spec
 ## External Dependencies
 
 - **LLM Providers**: Google Gemini, Anthropic Claude, OpenAI GPT
-- **Databases**: PostgreSQL, Supabase
+- **Databases**: PostgreSQL
 - **Weather API**: External weather service
 
 ## Technology Stack

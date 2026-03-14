@@ -109,7 +109,6 @@ workspace "AI Chatbot System" "AI Chatbot for DataSpecer and Database Query" {
         
         databases = softwareSystem "Databases" "External database systems storing actual data" "External System,Database" {
             postgresql = container "PostgreSQL Database" "PostgreSQL relational database" "" "Database"
-            supabase = container "Supabase Database" "Supabase cloud database service" "" "Database"
         }
         
         dataspecer = softwareSystem "DataSpecer" "External service providing data specifications in JSON-LD/RDF format" "External System" {
@@ -250,9 +249,6 @@ workspace "AI Chatbot System" "AI Chatbot for DataSpecer and Database Query" {
             deploymentNode "Database Server" "" "Cloud/On-premise" {
                 deploymentNode "PostgreSQL" "" "PostgreSQL 13+" {
                     postgresqlInstance = containerInstance postgresql
-                }
-                deploymentNode "Supabase" "" "Supabase Cloud" {
-                    supabaseInstance = containerInstance supabase
                 }
                 deploymentNode "Metadata Store" "" "PostgreSQL 13+" {
                     metadataStoreInstance = containerInstance metadataStore

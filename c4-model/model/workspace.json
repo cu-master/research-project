@@ -194,27 +194,6 @@
         "technology" : "PostgreSQL 13+"
       }, {
         "containerInstances" : [ {
-          "containerId" : "64",
-          "deploymentGroups" : [ "Default" ],
-          "environment" : "production",
-          "id" : "174",
-          "instanceId" : 1,
-          "properties" : {
-            "structurizr.dsl.identifier" : "supabaseInstance"
-          },
-          "tags" : "Container Instance"
-        } ],
-        "environment" : "production",
-        "id" : "173",
-        "instances" : "1",
-        "name" : "Supabase",
-        "properties" : {
-          "structurizr.dsl.identifier" : "5d829440-6323-4c99-80ba-d27e990a1962"
-        },
-        "tags" : "Element,Deployment Node",
-        "technology" : "Supabase Cloud"
-      }, {
-        "containerInstances" : [ {
           "containerId" : "52",
           "deploymentGroups" : [ "Default" ],
           "environment" : "production",
@@ -1305,7 +1284,7 @@
       "description" : "Enables non-expert users to interpret data specifications and query real-world databases using natural language",
       "documentation" : {
         "sections" : [ {
-          "content" : "# AI Chatbot System - Context\n\n## Overview\n\nThe AI Chatbot System enables non-expert users to interpret structured data specifications and query real-world databases using natural language. The system is built using a 3-tier architecture that separates presentation, orchestration, and backend services.\n\n## Key Features\n\n- **Schema Interpretation**: Upload and analyze data schemas (JSON, XML, XSD, etc.)\n- **Database Querying**: Natural language to SQL translation with safe execution\n- **Web Content Analysis**: Summarize and answer questions about web pages\n- **Conversational Interface**: Chat-based interaction with context awareness\n\n## Architecture Tiers\n\n### Tier 1: Presentation\n- Next.js Web Application with React components\n- Real-time chat interface\n- File attachment support\n\n### Tier 2: Orchestration\n- LangChain Agent for query routing\n- Tool orchestration and management\n- Conversation state management\n\n### Tier 3: Backend Services\n- Model Interpretation MCP Server (Port 3001)\n- Database Query MCP Server (Port 3002)\n\n## External Dependencies\n\n- **LLM Providers**: Google Gemini, Anthropic Claude, OpenAI GPT\n- **Databases**: PostgreSQL, Supabase\n- **Weather API**: External weather service\n\n## Technology Stack\n\n- **Frontend**: Next.js 14+, React, TypeScript, Tailwind CSS\n- **Orchestration**: LangChain.js\n- **Backend**: Node.js, Express.js, TypeScript\n- **Protocol**: Model Context Protocol (MCP)\n\nFor detailed architecture documentation, see `../../C4_ARCHITECTURE.md`.\n\n",
+          "content" : "# AI Chatbot System - Context\n\n## Overview\n\nThe AI Chatbot System enables non-expert users to interpret structured data specifications and query real-world databases using natural language. The system is built using a 3-tier architecture that separates presentation, orchestration, and backend services.\n\n## Key Features\n\n- **Schema Interpretation**: Upload and analyze data schemas (JSON, XML, XSD, etc.)\n- **Database Querying**: Natural language to SQL translation with safe execution\n- **Web Content Analysis**: Summarize and answer questions about web pages\n- **Conversational Interface**: Chat-based interaction with context awareness\n\n## Architecture Tiers\n\n### Tier 1: Presentation\n- Next.js Web Application with React components\n- Real-time chat interface\n- File attachment support\n\n### Tier 2: Orchestration\n- LangChain Agent for query routing\n- Tool orchestration and management\n- Conversation state management\n\n### Tier 3: Backend Services\n- Model Interpretation MCP Server (Port 3001)\n- Database Query MCP Server (Port 3002)\n\n## External Dependencies\n\n- **LLM Providers**: Google Gemini, Anthropic Claude, OpenAI GPT\n- **Databases**: PostgreSQL\n- **Weather API**: External weather service\n\n## Technology Stack\n\n- **Frontend**: Next.js 14+, React, TypeScript, Tailwind CSS\n- **Orchestration**: LangChain.js\n- **Backend**: Node.js, Express.js, TypeScript\n- **Protocol**: Model Context Protocol (MCP)\n\nFor detailed architecture documentation, see `../../C4_ARCHITECTURE.md`.\n\n",
           "filename" : "ai-chatbot-context.md",
           "format" : "Markdown",
           "order" : 1,
@@ -1394,15 +1373,6 @@
         "name" : "PostgreSQL Database",
         "properties" : {
           "structurizr.dsl.identifier" : "postgresql"
-        },
-        "tags" : "Element,Container,Database"
-      }, {
-        "description" : "Supabase cloud database service",
-        "documentation" : { },
-        "id" : "64",
-        "name" : "Supabase Database",
-        "properties" : {
-          "structurizr.dsl.identifier" : "supabase"
         },
         "tags" : "Element,Container,Database"
       } ],

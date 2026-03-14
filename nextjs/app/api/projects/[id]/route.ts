@@ -38,6 +38,9 @@ export async function PUT(
     }
 
     const body = await request.json();
+    if (body.db_port !== undefined && typeof body.db_port === "string") {
+      body.db_port = body.db_port ? parseInt(body.db_port, 10) : undefined;
+    }
     const project = await updateProject(params.id, userId, body);
 
     if (!project) {

@@ -60,6 +60,7 @@ export async function POST(request: Request) {
       db_ssl: body.db_ssl === true || body.db_ssl === "true",
       db_schema: body.db_schema || undefined,
       r2rml_mapping: body.r2rml_mapping || undefined,
+      alignment_result: body.alignment_result || undefined,
     };
 
     const project = await createProject(userId, input);

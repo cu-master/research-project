@@ -22,7 +22,7 @@ Analyzes and interprets data schemas, models, and specifications using AI.
 Connects to databases and provides AI-powered SQL generation and execution.
 
 **Features:**
-- Multi-database support (PostgreSQL, Supabase)
+- Multi-database support (PostgreSQL)
 - Natural language to SQL translation
 - Schema exploration (tables, columns, constraints)
 - Safe query execution with dangerous operation blocking
@@ -46,8 +46,7 @@ mcp-servers/
 │   ├── database-query/            # Database Query Server
 │   │   ├── adapters/              # Database adapters
 │   │   │   ├── interface.ts       # Adapter interface
-│   │   │   ├── postgresql.ts
-│   │   │   └── supabase.ts
+│   │   │   └── postgresql.ts
 │   │   ├── ai/                    # Server-specific AI config
 │   │   ├── tools/                 # MCP tools
 │   │   │   ├── handlers.ts
@@ -147,10 +146,8 @@ Both servers expose the following endpoints:
 - `generate-examples` - Generate example data
 ### Database Query Tools
 
-- `generate-sql` - Generate SQL from natural language
 - `list-tables` - List database tables
 - `get-table-schema` - Get table schema details
-- `execute-query` - Execute SQL query
 - `get-sample-queries` - Generate sample queries
 
 ## LLM Providers
@@ -196,13 +193,6 @@ DB_1_DATABASE=myapp
 DB_1_USER=postgres
 DB_1_PASSWORD=password
 DB_1_SSL=false
-```
-
-### Supabase
-
-```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_KEY=your_service_key
 ```
 
 ## Development

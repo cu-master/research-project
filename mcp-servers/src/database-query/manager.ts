@@ -1,5 +1,5 @@
 import type { DatabaseAdapter } from "./adapters/index.js";
-import { PostgreSQLAdapter, SupabaseAdapter } from "./adapters/index.js";
+import { PostgreSQLAdapter } from "./adapters/index.js";
 import type { DatabaseConfig, DatabaseType, SchemaCache } from "./types.js";
 
 // ============================================================================
@@ -64,8 +64,6 @@ class DatabaseManager {
     switch (config.type) {
       case "postgresql":
         return new PostgreSQLAdapter(config);
-      case "supabase":
-        return new SupabaseAdapter(config);
       default:
         throw new Error(`Unknown database type: ${(config as DatabaseConfig).type}`);
     }

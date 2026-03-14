@@ -3,71 +3,13 @@ import { dbManager } from "../manager.js";
 import { callAI } from "../ai/index.js";
 import {
   createMcpResponse,
-  extractSqlFromResponse,
   formatApiError,
-  validateSelectOnlySql,
-  prepareSqlForExecution,
 } from "../utils.js";
 import {
-  executeQuerySchema,
   getSampleQueriesSchema,
   getTableSchemaSchema,
-  generateSqlSchema,
   listTablesSchema,
 } from "./schemas.js";
-
-// ============================================================================
-// SQL Generation Handlers
-// ============================================================================
-
-async function generateSqlInternal(params: {
-  query: string;
-  databaseId?: string;
-  additionalContext?: string;
-}): Promise<McpResponse> {
-  const adapter = dbManager.getAdapter(params.databaseId);
-  const connection = dbManager.getConnection(params.databaseId);
-  const schemaContext = await adapter.buildSchemaContext();
-
-  const prompt = `You are an expert SQL generator for ${connection.config.type === "supabase" ? "PostgreSQL (Supabase)" : "PostgreSQL"
-    }. Convert the following natural language query to a valid SQL query.
-
-${schemaContext}
-
-${params.additionalContext ? `Additional Context: ${params.additionalContext}\n\n` : ""}
-
-Natural Language Query: "${params.query}"
-
-Requirements:
-1. Generate ONLY valid PostgreSQL SQL
-2. Use proper table and column names from the schema
-3. Include appropriate JOINs when referencing related tables
-4. Use parameterized placeholders ($1, $2, etc.) for user-provided values when appropriate
-5. Add LIMIT clause for SELECT queries if not specified (default 100)
-6. Use proper escaping and quoting for identifiers if needed
-
-Return ONLY the SQL query wrapped in a sql code block. Do not include any explanation.
-
-\`\`\`sql
-YOUR_SQL_HERE
-\`\`\``;
-
-  const response = await callAI(prompt, 1000);
-  const sql = extractSqlFromResponse(response);
-
-  return createMcpResponse(
-    `# SQL Generation\n\n**Database:** ${connection.name} (${connection.id})\n\n**Natural Language:** ${params.query}\n\n**Generated SQL:**\n\`\`\`sql\n${sql}\n\`\`\`\n\n*Note: Review the query before execution. Use the execute-query tool to run it.*`
-  );
-}
-
-export async function handleGenerateSql(args: Record<string, unknown>): Promise<McpResponse> {
-  try {
-    const { query, databaseId } = generateSqlSchema.parse(args);
-    return await generateSqlInternal({ query, databaseId });
-  } catch (error) {
-    return createMcpResponse(`Error generating SQL: ${formatApiError(error)}`, true);
-  }
-}
 
 // ============================================================================
 // Table Handlers
@@ -170,76 +112,6 @@ export async function handleGetTableSchema(args: Record<string, unknown>): Promi
     return createMcpResponse(output);
   } catch (error) {
     return createMcpResponse(`Error getting table schema: ${formatApiError(error)}`, true);
-  }
-}
-
-// ============================================================================
-// Query Execution Handler
-// ============================================================================
-
-export async function handleExecuteQuery(args: Record<string, unknown>): Promise<McpResponse> {
-  try {
-    const { sql, limit = 100, explain = false, databaseId } = executeQuerySchema.parse(args);
-
-    const adapter = dbManager.getAdapter(databaseId);
-    const connection = dbManager.getConnection(databaseId);
-
-    // NFR-02: AST-based SQL validation — treat LLM output as untrusted input.
-    // Parse to AST and verify root node is strictly a SELECT statement.
-    const sqlValidation = validateSelectOnlySql(sql);
-    if (!sqlValidation.valid) {
-      return createMcpResponse(
-        `⛔ SQL Rejected (NFR-02): ${sqlValidation.reason}\n\n` +
-        `Only read-only SELECT queries are permitted. ` +
-        `Mutating commands (INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, GRANT, REVOKE, TRUNCATE) ` +
-        `and unparseable SQL are blocked before reaching the database.`,
-        true
-      );
-    }
-
-    let finalSql = prepareSqlForExecution(sql, limit);
-
-    if (explain) {
-      finalSql = `EXPLAIN ANALYZE ${finalSql}`;
-    }
-
-    const result = await adapter.executeQuery(finalSql);
-
-    if (result.error) {
-      return createMcpResponse(
-        `# Query Execution Error\n\n**Database:** ${connection.name}\n\n**SQL:**\n\`\`\`sql\n${finalSql}\n\`\`\`\n\n**Error:**\n${result.error}`,
-        true
-      );
-    }
-
-    if (result.rows.length === 0) {
-      return createMcpResponse(
-        `# Query Results\n\n**Database:** ${connection.name}\n\n**SQL:**\n\`\`\`sql\n${finalSql}\n\`\`\`\n\n*No results returned.*`
-      );
-    }
-
-    const columns = Object.keys(result.rows[0]);
-    let output = `# Query Results\n\n`;
-    output += `**Database:** ${connection.name} (${connection.id})\n\n`;
-    output += `**SQL:**\n\`\`\`sql\n${finalSql}\n\`\`\`\n\n`;
-    output += `**Rows returned:** ${result.rows.length}${result.rows.length >= limit ? ` (limited to ${limit})` : ""}\n\n`;
-
-    output += `| ${columns.join(" | ")} |\n`;
-    output += `| ${columns.map(() => "---").join(" | ")} |\n`;
-
-    for (const row of result.rows) {
-      const values = columns.map((col) => {
-        const val = row[col];
-        if (val === null) return "NULL";
-        if (typeof val === "object") return JSON.stringify(val);
-        return String(val);
-      });
-      output += `| ${values.join(" | ")} |\n`;
-    }
-
-    return createMcpResponse(output);
-  } catch (error) {
-    return createMcpResponse(`Error executing query: ${formatApiError(error)}`, true);
   }
 }
 

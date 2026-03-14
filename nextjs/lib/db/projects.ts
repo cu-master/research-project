@@ -18,6 +18,7 @@ export interface CreateProjectInput {
   db_ssl?: boolean;
   db_schema?: Record<string, unknown> | null;
   r2rml_mapping?: string | null;
+  alignment_result?: any;
 }
 
 /**
@@ -42,6 +43,7 @@ export async function createProject(
       urls: input.urls ? (input.urls as Prisma.InputJsonValue) : Prisma.JsonNull,
       db_schema: input.db_schema ? (input.db_schema as Prisma.InputJsonValue) : Prisma.JsonNull,
       r2rml_mapping: input.r2rml_mapping || null,
+      alignment_result: input.alignment_result ? (input.alignment_result as Prisma.InputJsonValue) : Prisma.JsonNull,
       owner: {
         connect: { id: userId }
       }
@@ -103,6 +105,7 @@ export async function updateProject(
   if (input.db_ssl !== undefined) data.db_ssl = input.db_ssl;
   if (input.db_schema !== undefined) data.db_schema = input.db_schema ? (input.db_schema as Prisma.InputJsonValue) : Prisma.JsonNull;
   if (input.r2rml_mapping !== undefined) data.r2rml_mapping = input.r2rml_mapping;
+  if (input.alignment_result !== undefined) data.alignment_result = input.alignment_result ? (input.alignment_result as Prisma.InputJsonValue) : Prisma.JsonNull;
 
   if (Object.keys(data).length === 0) return existing;
 

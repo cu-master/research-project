@@ -1,16 +1,12 @@
 import type { ToolDefinition } from "../../shared/types.js";
 import { zodToJsonSchema } from "../../shared/utils.js";
 import {
-  executeQuerySchema,
-  generateSqlSchema,
   getSampleQueriesSchema,
   getTableSchemaSchema,
   listTablesSchema,
   obdaQuerySchema,
 } from "./schemas.js";
 import {
-  handleExecuteQuery,
-  handleGenerateSql,
   handleGetSampleQueries,
   handleGetTableSchema,
   handleListTables,
@@ -23,13 +19,6 @@ import { handleObdaQuery } from "./obda-handler.js";
 
 export const tools: ToolDefinition[] = [
   {
-    name: "generate-sql",
-    description:
-      "Generate SQL from a natural language query. Analyzes the database schema and generates appropriate PostgreSQL queries.",
-    inputSchema: zodToJsonSchema(generateSqlSchema),
-    handler: handleGenerateSql,
-  },
-  {
     name: "list-tables",
     description: "List all tables and views in the specified database.",
     inputSchema: zodToJsonSchema(listTablesSchema),
@@ -41,13 +30,6 @@ export const tools: ToolDefinition[] = [
       "Get detailed schema information for a specific table including columns, types, constraints, and foreign keys.",
     inputSchema: zodToJsonSchema(getTableSchemaSchema),
     handler: handleGetTableSchema,
-  },
-  {
-    name: "execute-query",
-    description:
-      "Execute a SQL query on the specified database. Supports SELECT, INSERT, UPDATE, and DELETE. Dangerous operations are blocked.",
-    inputSchema: zodToJsonSchema(executeQuerySchema),
-    handler: handleExecuteQuery,
   },
   {
     name: "get-sample-queries",

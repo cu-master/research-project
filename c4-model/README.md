@@ -27,7 +27,7 @@ This workspace defines the architecture for the **AI Chatbot for DataSpecer and 
 
 **External Systems:**
 - LLM Providers (Google Gemini, Anthropic Claude, OpenAI GPT)
-- Databases (PostgreSQL, Supabase)
+- Databases (PostgreSQL)
 - Weather API
 
 ## Documentation

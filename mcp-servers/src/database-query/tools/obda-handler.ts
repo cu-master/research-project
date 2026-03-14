@@ -558,6 +558,7 @@ export async function handleObdaQuery(
 
     const llmResponse = await callAI(sparqlPrompt, 2000);
     const sparqlQuery = extractSparqlFromResponse(llmResponse);
+    console.log(`[OBDA] Generated SPARQL:\n${sparqlQuery}`);
 
     if (!sparqlQuery || !looksLikeSparql(sparqlQuery)) {
       const debugDetails = includeDebugContext
@@ -600,6 +601,11 @@ export async function handleObdaQuery(
     }
 
     const sqlTranslation = validation.sqlTranslation ?? null;
+    if (sqlTranslation) {
+      console.log(`[OBDA] Generated SQL (Ontop reformulation):\n${sqlTranslation.trim()}`);
+    } else {
+      console.log("[OBDA] SQL reformulation not available");
+    }
 
     // Step 4: Execute SPARQL via Ontop
     console.log(`[OBDA] Executing SPARQL via Ontop...`);

@@ -180,7 +180,6 @@ Union type for different database connection configurations.
 ```typescript
 type DatabaseConfig = 
   | PostgreSQLConfig 
-  | SupabaseConfig 
   | MySQLConfig;
 
 interface PostgreSQLConfig {
@@ -191,12 +190,6 @@ interface PostgreSQLConfig {
   user: string;
   password: string;
   ssl?: boolean | { rejectUnauthorized: boolean };
-}
-
-interface SupabaseConfig {
-  type: "supabase";
-  url: string;
-  serviceKey: string;
 }
 
 interface MySQLConfig {

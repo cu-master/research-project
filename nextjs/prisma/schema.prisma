@@ -20,23 +20,24 @@ model Schema {
 }
 
 model Project {
-  id            String   @id @default(uuid()) @db.Uuid
-  user_id       String   @db.Uuid
-  name          String   @db.Text
-  urls          Json?    @default("[]")
-  content       String?  @default("")
-  db_type       String?  @db.Text
-  db_name       String?  @db.Text
-  db_host       String?  @db.Text
-  db_port       Int?
-  db_database   String?  @db.Text
-  db_user       String?  @db.Text
-  db_password   String?  @db.Text
-  db_ssl        Boolean? @default(false)
-  db_schema     Json?
-  r2rml_mapping String?  @db.Text
-  created_at    DateTime @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  id               String   @id @default(uuid()) @db.Uuid
+  user_id          String   @db.Uuid
+  name             String   @db.Text
+  urls             Json?    @default("[]")
+  content          String?  @default("")
+  db_type          String?  @db.Text
+  db_name          String?  @db.Text
+  db_host          String?  @db.Text
+  db_port          Int?
+  db_database      String?  @db.Text
+  db_user          String?  @db.Text
+  db_password      String?  @db.Text
+  db_ssl           Boolean? @default(false)
+  db_schema        Json?
+  r2rml_mapping    String?  @db.Text
+  alignment_result Json?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
   owner             User      @relation("UserProjects", fields: [user_id], references: [id], onDelete: Cascade)
   default_for_users User[]    @relation("DefaultProject")

@@ -17,6 +17,7 @@ export interface ProjectData {
   db_ssl: boolean;
   db_schema: Record<string, unknown> | null;
   r2rml_mapping: string | null;
+  alignment_result?: any;
 }
 
 interface ProjectModalProps {
@@ -143,6 +144,7 @@ export default function ProjectModal({
             : null
         );
         setR2rmlMapping(project.r2rml_mapping || null);
+        setAlignmentResult(project.alignment_result || null);
       } else {
         setName("");
         setUrls([""]);
@@ -161,7 +163,6 @@ export default function ProjectModal({
       setContentStatus("");
       setConnectionStatus(null);
       setSchemaError("");
-      setAlignmentResult(null);
       setAlignmentError("");
       setIsCheckingAlignment(false);
       setMappingError("");
@@ -203,7 +204,7 @@ export default function ProjectModal({
       if (!response.ok || !data.success) {
         setAlignmentError(data.error || data.message || "Failed to check alignment");
       } else {
-        setAlignmentResult({
+        const result = {
           score: data.score,
           ontologyDomain: data.ontologyDomain,
           databaseDomain: data.databaseDomain,
@@ -212,7 +213,21 @@ export default function ProjectModal({
           unmatchedDatabase: data.unmatchedDatabase,
           recommendation: data.recommendation,
           summary: data.summary,
-        });
+        };
+        setAlignmentResult(result);
+        
+        // Auto-save alignment result if editing an existing project
+        if (isEditing && project) {
+          try {
+            await fetch(`/api/projects/${project.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ alignment_result: result }),
+            });
+          } catch {
+            // Silently fail
+          }
+        }
       }
     } catch (err) {
       setAlignmentError(err instanceof Error ? err.message : "Alignment check failed");
@@ -498,6 +513,11 @@ export default function ProjectModal({
     // Include R2RML mapping if generated
     if (r2rmlMapping) {
       payload.r2rml_mapping = r2rmlMapping;
+    }
+
+    // Include alignment result if checked
+    if (alignmentResult) {
+      payload.alignment_result = alignmentResult;
     }
 
     try {
@@ -1161,42 +1181,48 @@ export default function ProjectModal({
 
                 {/* Matched / Unmatched concepts */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                  {alignmentResult.matchedConcepts.length > 0 && (
-                    <div>
-                      <span className="font-medium text-gray-600">Matched:</span>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {alignmentResult.matchedConcepts.map((c, i) => (
+                  <div>
+                    <span className="font-medium text-gray-600">Matched:</span>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {alignmentResult.matchedConcepts.length > 0 ? (
+                        alignmentResult.matchedConcepts.map((c, i) => (
                           <span key={i} className="rounded bg-green-100 px-1.5 py-0.5 text-green-800">
                             {c}
                           </span>
-                        ))}
-                      </div>
+                        ))
+                      ) : (
+                        <span className="text-gray-400 italic">None</span>
+                      )}
                     </div>
-                  )}
-                  {alignmentResult.unmatchedOntology.length > 0 && (
-                    <div>
-                      <span className="font-medium text-gray-600">Ontology only:</span>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {alignmentResult.unmatchedOntology.map((c, i) => (
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-600">Ontology only:</span>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {alignmentResult.unmatchedOntology.length > 0 ? (
+                        alignmentResult.unmatchedOntology.map((c, i) => (
                           <span key={i} className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600">
                             {c}
                           </span>
-                        ))}
-                      </div>
+                        ))
+                      ) : (
+                        <span className="text-gray-400 italic">None</span>
+                      )}
                     </div>
-                  )}
-                  {alignmentResult.unmatchedDatabase.length > 0 && (
-                    <div>
-                      <span className="font-medium text-gray-600">Database only:</span>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {alignmentResult.unmatchedDatabase.map((c, i) => (
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-600">Database only:</span>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {alignmentResult.unmatchedDatabase.length > 0 ? (
+                        alignmentResult.unmatchedDatabase.map((c, i) => (
                           <span key={i} className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600">
                             {c}
                           </span>
-                        ))}
-                      </div>
+                        ))
+                      ) : (
+                        <span className="text-gray-400 italic">None</span>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Mismatch notice */}

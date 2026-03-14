@@ -1,0 +1,164 @@
+[
+    {
+        "id": "P01",
+        "category": "positive",
+        "subtype": "simple_retrieval",
+        "prompt": "Can you give me a list of all our customers with their ID numbers and first names, in numerical order?",
+        "repeat": 2,
+        "expectation": {
+            "behavior": "sql",
+            "sqlMustContain": [
+                "select",
+                "from customer",
+                "customer_id",
+                "first_name"
+            ]
+        }
+    },
+    {
+        "id": "P02",
+        "category": "positive",
+        "subtype": "simple_retrieval",
+        "prompt": "Show me all the movies we have, including their ID number, title, and rental price, sorted by ID.",
+        "repeat": 2,
+        "expectation": {
+            "behavior": "sql",
+            "sqlMustContain": [
+                "select",
+                "from film",
+                "film_id",
+                "rental_rate"
+            ]
+        }
+    },
+    {
+        "id": "P03",
+        "category": "positive",
+        "subtype": "complex_join",
+        "prompt": "Who rented what? Please show me every rental transaction ID along with the customer's first name.",
+        "repeat": 2,
+        "expectation": {
+            "behavior": "sql",
+            "sqlMustContain": [
+                "from rental",
+                "join customer",
+                "rental_id",
+                "first_name"
+            ]
+        }
+    },
+    {
+        "id": "P04",
+        "category": "positive",
+        "subtype": "complex_join",
+        "prompt": "Can you give me a list of our physical inventory items, showing the movie title and the store ID for each copy?",
+        "repeat": 2,
+        "expectation": {
+            "behavior": "sql",
+            "sqlMustContain": [
+                "from inventory",
+                "join film",
+                "store_id",
+                "title"
+            ]
+        }
+    },
+    {
+        "id": "P05",
+        "category": "positive",
+        "subtype": "aggregation",
+        "prompt": "How many total customers do we have? Please make sure the answer column is named exactly 'customer_count'.",
+        "repeat": 2,
+        "expectation": {
+            "behavior": "sql",
+            "sqlMustContain": [
+                "count",
+                "from customer",
+                "customer_count"
+            ],
+            "expectedResultSignature": "[{\"customer_count\":\"599\"}]"
+        }
+    },
+    {
+        "id": "P06",
+        "category": "positive",
+        "subtype": "aggregation",
+        "prompt": "What is the total number of rentals we've ever had? Please label the final number as 'rental_count'.",
+        "repeat": 2,
+        "expectation": {
+            "behavior": "sql",
+            "sqlMustContain": [
+                "count",
+                "from rental",
+                "rental_count"
+            ],
+            "expectedResultSignature": "[{\"rental_count\":\"16044\"}]"
+        }
+    },
+    {
+        "id": "P07",
+        "category": "positive",
+        "subtype": "aggregation",
+        "prompt": "How much total revenue have we made from all payments? Please label the final amount exactly as 'total_revenue'.",
+        "repeat": 2,
+        "expectation": {
+            "behavior": "sql",
+            "sqlMustContain": [
+                "sum",
+                "from payment",
+                "total_revenue"
+            ],
+            "expectedResultSignature": "[{\"total_revenue\":\"61312.04\"}]"
+        }
+    },
+    {
+        "id": "P08",
+        "category": "positive",
+        "subtype": "complex_aggregation",
+        "prompt": "Can you show me the titles of our most frequently rented movies and exactly how many times each was rented?",
+        "repeat": 2,
+        "expectation": {
+            "behavior": "sql",
+            "sqlMustContain": [
+                "count",
+                "from rental",
+                "join inventory",
+                "join film",
+                "title"
+            ]
+        }
+    },
+    {
+        "id": "P09",
+        "category": "positive",
+        "subtype": "complex_aggregation",
+        "prompt": "Which movie categories bring in the most money? Show me the category name and the total sales for each.",
+        "repeat": 2,
+        "expectation": {
+            "behavior": "sql",
+            "sqlMustContain": [
+                "sum",
+                "from payment",
+                "join rental",
+                "join inventory",
+                "join film_category",
+                "join category",
+                "name"
+            ]
+        }
+    },
+    {
+        "id": "P10",
+        "category": "positive",
+        "subtype": "filtering",
+        "prompt": "Can you pull a list of all current rentals that haven't been returned to the store yet?",
+        "repeat": 2,
+        "expectation": {
+            "behavior": "sql",
+            "sqlMustContain": [
+                "where return_date is null",
+                "from rental"
+            ]
+        }
+    }
+]

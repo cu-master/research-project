@@ -1,0 +1,10 @@
+{
+  "baseUrl": "http://localhost:3000",
+  "endpointPath": "/api/chat",
+  "timeoutMs": 45000,
+  "threshold": {
+    "executionRateMin": 85,
+    "resultAccuracyMin": 80,
+    "consistencyScoreMin": 75
+  }
+}

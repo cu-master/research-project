@@ -55,7 +55,7 @@ export interface SchemaCache {
 // Database Configuration Types
 // ============================================================================
 
-export type DatabaseType = "postgresql" | "supabase";
+export type DatabaseType = "postgresql";
 
 export interface PostgreSQLConfig {
   type: "postgresql";
@@ -67,13 +67,7 @@ export interface PostgreSQLConfig {
   ssl?: boolean | { rejectUnauthorized: boolean };
 }
 
-export interface SupabaseConfig {
-  type: "supabase";
-  url: string;
-  serviceKey: string;
-}
-
-export type DatabaseConfig = PostgreSQLConfig | SupabaseConfig;
+export type DatabaseConfig = PostgreSQLConfig;
 
 // ============================================================================
 // App Configuration (extends shared config)
