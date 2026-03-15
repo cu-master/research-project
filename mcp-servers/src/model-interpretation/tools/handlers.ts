@@ -8,6 +8,113 @@ import {
   explainMappingSchema,
 } from "./schemas.js";
 
+type ConceptualDefinitionPayload = {
+  entities: string[];
+  attributes: string[];
+  relationships: string[];
+  summary: string;
+};
+
+function parseJsonObject<T>(raw: string): T | null {
+  try {
+    let jsonString = raw.trim();
+    jsonString = jsonString
+      .replace(/^```(?:json)?\s*\n?/i, "")
+      .replace(/\n?\s*```$/i, "");
+    const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    return JSON.parse(jsonMatch[0]) as T;
+  } catch {
+    return null;
+  }
+}
+
+function buildConceptualDefinitionPrompt(query: string, content: string): string {
+  return `You are a content interpretation assistant for a Retrieval-Augmented Generation (RAG) workflow.
+
+Your job is to "semantically prune" the provided content: extract ONLY the conceptual entities, attributes, and relationships that are relevant to the user's query.
+
+User Query:
+"${query}"
+
+Content (conceptual model / spec):
+---
+${content}
+---
+
+Output requirements:
+- Be concise and specific.
+- Use ONLY concepts present in the content.
+- Prefer the domain language (conceptual names), not physical DB names.
+- Output a structured JSON object representing the extracted schema.
+
+Return a JSON object with this exact structure:
+{
+  "entities": ["array of exact entity names"],
+  "attributes": ["array of key attributes needed"],
+  "relationships": ["array of relationship descriptions (e.g., 'Order connects to Customer')"],
+  "summary": "a single focused sentence summarizing the relevant concepts"
+}
+
+Return ONLY the JSON object, no additional text or markdown formatting.`;
+}
+
+function buildConceptualDefinitionRetryPrompt(query: string, content: string): string {
+  return `Return ONLY a VALID JSON object.
+No markdown, no explanation, no code fences.
+
+Schema (exact keys required):
+{
+  "entities": ["string"],
+  "attributes": ["string"],
+  "relationships": ["string"],
+  "summary": "string"
+}
+
+Constraints:
+- Keep arrays short (max 8 items each).
+- Keep summary to one sentence (max 30 words).
+- Use only concepts present in the content.
+- Ensure JSON is complete and parseable.
+
+User Query:
+"${query}"
+
+Content:
+---
+${content}
+---`;
+}
+
+function ensureConceptualDefinitionShape(
+  parsed: Partial<ConceptualDefinitionPayload> | null
+): ConceptualDefinitionPayload {
+  if (!parsed || typeof parsed !== "object") {
+    return {
+      entities: [],
+      attributes: [],
+      relationships: [],
+      summary: "No relevant conceptual entities were extracted.",
+    };
+  }
+
+  return {
+    entities: Array.isArray(parsed.entities)
+      ? parsed.entities.filter((v): v is string => typeof v === "string")
+      : [],
+    attributes: Array.isArray(parsed.attributes)
+      ? parsed.attributes.filter((v): v is string => typeof v === "string")
+      : [],
+    relationships: Array.isArray(parsed.relationships)
+      ? parsed.relationships.filter((v): v is string => typeof v === "string")
+      : [],
+    summary:
+      typeof parsed.summary === "string" && /\S/.test(parsed.summary)
+        ? parsed.summary.trim()
+        : "No relevant conceptual entities were extracted.",
+  };
+}
+
 // ============================================================================
 // Answer Query Handler
 // ============================================================================
@@ -129,72 +236,43 @@ export async function handleConceptualDefinition(
     console.log(`[ConceptualDefinition] Processing query: "${query}"`);
     console.log(`[ConceptualDefinition] Content length: ${content.length} chars`);
 
-    const prompt = `You are a content interpretation assistant for a Retrieval-Augmented Generation (RAG) workflow.
+    const prompt = buildConceptualDefinitionPrompt(query, content);
 
-Your job is to "semantically prune" the provided content: extract ONLY the conceptual entities, attributes, and relationships that are relevant to the user's query.
-
-User Query:
-"${query}"
-
-Content (conceptual model / spec):
----
-${content}
----
-
-Output requirements:
-- Be concise and specific.
-- Use ONLY concepts present in the content.
-- Prefer the domain language (conceptual names), not physical DB names.
-- Output a structured JSON object representing the extracted schema.
-
-Return a JSON object with this exact structure:
-{
-  "entities": ["array of exact entity names"],
-  "attributes": ["array of key attributes needed"],
-  "relationships": ["array of relationship descriptions (e.g., 'Order connects to Customer')"],
-  "summary": "a single focused sentence summarizing the relevant concepts"
-}
-
-Return ONLY the JSON object, no additional text or markdown formatting.`;
-
-    const aiResponse = await callAI(prompt, 1200);
+    let aiResponse = await callAI(prompt, 800);
     console.log(`[ConceptualDefinition] Output:\n${aiResponse}`);
 
-    let parsed: {
-      entities: string[];
-      attributes: string[];
-      relationships: string[];
-      summary: string;
-    };
+    let parsed = parseJsonObject<ConceptualDefinitionPayload>(aiResponse);
 
-    try {
-      let jsonString = aiResponse.trim();
-      jsonString = jsonString
-        .replace(/^```(?:json)?\s*\n?/i, "")
-        .replace(/\n?\s*```$/i, "");
-      const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error("No JSON object found in response");
-      }
-    } catch {
-      console.warn(`[ConceptualDefinition] Failed to parse structured response, using raw text`);
-      return createMcpResponse(aiResponse);
+    if (!parsed) {
+      console.warn(
+        `[ConceptualDefinition] First parse failed; retrying with stricter JSON prompt`
+      );
+      const retryPrompt = buildConceptualDefinitionRetryPrompt(query, content);
+      aiResponse = await callAI(retryPrompt, 800);
+      console.log(`[ConceptualDefinition] Retry output:\n${aiResponse}`);
+      parsed = parseJsonObject<ConceptualDefinitionPayload>(aiResponse);
     }
 
-    let responseText = `**Conceptual Summary:** ${parsed.summary}\n\n`;
+    if (!parsed) {
+      console.warn(
+        `[ConceptualDefinition] Retry parse failed; using safe empty structured fallback`
+      );
+    }
+
+    const normalized = ensureConceptualDefinitionShape(parsed);
+
+    let responseText = `**Conceptual Summary:** ${normalized.summary}\n\n`;
     
-    if (parsed.entities.length > 0) {
-      responseText += `**Entities:**\n${parsed.entities.map(e => `- ${e}`).join("\\n")}\n\n`;
+    if (normalized.entities.length > 0) {
+      responseText += `**Entities:**\n${normalized.entities.map(e => `- ${e}`).join("\\n")}\n\n`;
     }
     
-    if (parsed.attributes.length > 0) {
-      responseText += `**Attributes:**\n${parsed.attributes.map(a => `- ${a}`).join("\\n")}\n\n`;
+    if (normalized.attributes.length > 0) {
+      responseText += `**Attributes:**\n${normalized.attributes.map(a => `- ${a}`).join("\\n")}\n\n`;
     }
 
-    if (parsed.relationships.length > 0) {
-      responseText += `**Relationships:**\n${parsed.relationships.map(r => `- ${r}`).join("\\n")}\n`;
+    if (normalized.relationships.length > 0) {
+      responseText += `**Relationships:**\n${normalized.relationships.map(r => `- ${r}`).join("\\n")}\n`;
     }
 
     return createMcpResponse(responseText.trim());

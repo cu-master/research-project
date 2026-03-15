@@ -53,9 +53,6 @@ export const obdaQuerySchema = z.object({
     .string()
     .min(1)
     .describe("User's natural language database query."),
-  conceptualDefinition: z
-    .string()
-    .describe("Conceptual definition from the Model Interpretation Server (entities, attributes, relationships relevant to the query)."),
   r2rmlMapping: z
     .string()
     .min(1)

@@ -2,6 +2,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs/promises";
 import * as path from "path";
+import * as crypto from "crypto";
 import { Parser as SparqlParser, type SparqlQuery } from "sparqljs";
 import { Parser as N3Parser, type Quad } from "n3";
 import type { McpResponse } from "../../shared/types.js";
@@ -114,12 +115,17 @@ async function waitForOntop(
   return false;
 }
 
+function getMappingHash(dbConfig: DbConfig, r2rmlMapping: string): string {
+  const data = JSON.stringify(dbConfig) + r2rmlMapping;
+  return crypto.createHash("sha256").update(data).digest("hex");
+}
+
 async function ensureOntopConfigured(
   r2rmlMapping: string,
   dbConfig: DbConfig,
   ontopSparqlUrl: string
 ): Promise<boolean> {
-  const configHash = JSON.stringify({ dbConfig, r2rml: r2rmlMapping.length });
+  const configHash = getMappingHash(dbConfig, r2rmlMapping);
   const needsReconfigure = currentConfigHash !== configHash;
 
   if (needsReconfigure) {
@@ -175,19 +181,38 @@ RULES:
 
 function buildSparqlPrompt(
   query: string,
-  conceptualDefinition: string,
   r2rmlMapping: string
 ): string {
   return `## Natural Language Query
 ${query}
 
-## Conceptual Definition (relevant entities, attributes, relationships)
-${conceptualDefinition}
-
 ## R2RML Mapping (Turtle)
 ${r2rmlMapping}
 
 Generate the SPARQL SELECT query:`;
+}
+
+function buildSparqlFixPrompt(
+  brokenSparql: string,
+  parseError: string,
+  r2rmlMapping: string
+): string {
+  return `${SPARQL_SYSTEM_PROMPT}
+
+The following SPARQL query has a SYNTAX ERROR that must be fixed.
+
+## Parse Error
+${parseError}
+
+## Broken Query
+\`\`\`sparql
+${brokenSparql}
+\`\`\`
+
+## R2RML Mapping (for reference)
+${r2rmlMapping}
+
+Output ONLY the corrected, complete, syntactically valid SPARQL SELECT query. No markdown. No explanation.`;
 }
 
 /** @internal exported for unit testing */
@@ -362,10 +387,29 @@ async function dryRunReformulate(
   }
 }
 
+interface R2rmlCache {
+  classes: Set<string>;
+  predicates: Set<string>;
+}
+
+const r2rmlCache = new Map<string, R2rmlCache>();
+
+async function getCachedMappedUris(r2rmlTtl: string): Promise<R2rmlCache> {
+  const hash = crypto.createHash("sha256").update(r2rmlTtl).digest("hex");
+  if (r2rmlCache.has(hash)) {
+    return r2rmlCache.get(hash)!;
+  }
+  const quads = await parseR2rml(r2rmlTtl);
+  const extracted = extractMappedUris(quads);
+  r2rmlCache.set(hash, extracted);
+  return extracted;
+}
+
 async function validateSparql(
   sparql: string,
   r2rmlTtl: string,
-  ontopSparqlUrl: string
+  ontopSparqlUrl: string,
+  includeDebugContext: boolean = false
 ): Promise<SparqlValidationResult> {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -380,8 +424,7 @@ async function validateSparql(
   }
 
   try {
-    const quads = await parseR2rml(r2rmlTtl);
-    const { classes, predicates } = extractMappedUris(quads);
+    const { classes, predicates } = await getCachedMappedUris(r2rmlTtl);
 
     const parser = new SparqlParser();
     const ast: SparqlQuery = parser.parse(sparql);
@@ -395,11 +438,15 @@ async function validateSparql(
     );
   }
 
-  const dryRun = await dryRunReformulate(sparql, ontopSparqlUrl);
+  let dryRun: { success: boolean; sql?: string; error?: string } = { success: true };
+  
+  if (includeDebugContext) {
+    dryRun = await dryRunReformulate(sparql, ontopSparqlUrl);
 
-  if (!dryRun.success) {
-    errors.push(`Ontop reformulation failed: ${dryRun.error}`);
-    return { valid: false, errors, warnings };
+    if (!dryRun.success) {
+      errors.push(`Ontop reformulation failed: ${dryRun.error}`);
+      return { valid: false, errors, warnings };
+    }
   }
 
   return { valid: true, errors, warnings, sqlTranslation: dryRun.sql };
@@ -517,7 +564,6 @@ export async function handleObdaQuery(
   try {
     const {
       query: userQuery,
-      conceptualDefinition,
       r2rmlMapping,
       dbConfig,
       ontopSparqlUrl: ontopUrlOverride,
@@ -548,16 +594,15 @@ export async function handleObdaQuery(
       );
     }
 
-    // Step 2: Generate SPARQL from natural language
+    // Step 2: Generate SPARQL from natural language (with syntax-error fix-up retry)
     console.log(`[OBDA] Generating SPARQL for: "${userQuery}"`);
     const sparqlPrompt = `${SPARQL_SYSTEM_PROMPT}\n\n${buildSparqlPrompt(
       userQuery,
-      conceptualDefinition,
       r2rmlMapping
     )}`;
 
-    const llmResponse = await callAI(sparqlPrompt, 2000);
-    const sparqlQuery = extractSparqlFromResponse(llmResponse);
+    let llmResponse = await callAI(sparqlPrompt, 2000);
+    let sparqlQuery = extractSparqlFromResponse(llmResponse);
     console.log(`[OBDA] Generated SPARQL:\n${sparqlQuery}`);
 
     if (!sparqlQuery || !looksLikeSparql(sparqlQuery)) {
@@ -572,12 +617,44 @@ export async function handleObdaQuery(
       );
     }
 
+    // Syntax fix-up: if the generated SPARQL has a parse error, retry with a
+    // targeted correction prompt (up to 2 attempts) before giving up.
+    const MAX_FIX_RETRIES = 2;
+    for (let attempt = 0; attempt < MAX_FIX_RETRIES; attempt++) {
+      const syntaxCheck = validateSyntax(sparqlQuery);
+      if (syntaxCheck.valid) break;
+
+      console.warn(
+        `[OBDA] SPARQL syntax error (attempt ${attempt + 1}/${MAX_FIX_RETRIES}): ${syntaxCheck.error}`
+      );
+
+      if (attempt === MAX_FIX_RETRIES - 1) {
+        // All retries exhausted — surface the error.
+        const debugDetails = includeDebugContext
+          ? `\n\n**Broken SPARQL:**\n\`\`\`sparql\n${sparqlQuery}\n\`\`\``
+          : "";
+        return createMcpResponse(
+          `Error: Generated SPARQL failed validation:\n\n- SPARQL syntax error: ${syntaxCheck.error}\n\n` +
+          `Try rephrasing your question or regenerating the R2RML mapping.` +
+          debugDetails,
+          true
+        );
+      }
+
+      // Ask the LLM to fix the specific parse error.
+      const fixPrompt = buildSparqlFixPrompt(sparqlQuery, syntaxCheck.error ?? "", r2rmlMapping);
+      llmResponse = await callAI(fixPrompt, 2000);
+      sparqlQuery = extractSparqlFromResponse(llmResponse);
+      console.log(`[OBDA] Fixed SPARQL (attempt ${attempt + 1}):\n${sparqlQuery}`);
+    }
+
     // Step 3: Validate SPARQL (syntax + predicate cross-check + dry-run)
     console.log(`[OBDA] Validating SPARQL...`);
     const validation = await validateSparql(
       sparqlQuery,
       r2rmlMapping,
-      ontopSparqlUrl
+      ontopSparqlUrl,
+      includeDebugContext ?? false
     );
 
     if (!validation.valid) {

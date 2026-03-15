@@ -103,9 +103,7 @@ export async function POST(request: Request) {
       async () =>
         agent.invoke(
           { messages: messagesToSend },
-          // Safety backstop: if the system prompt instruction to stop on NFR-02
-          // rejection is not followed, cut the loop short at 10 iterations.
-          { recursionLimit: 10 }
+          { recursionLimit: 25 }
         )
     );
     const endTime = Date.now();
@@ -225,9 +223,10 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             response:
-              "I'm sorry, but I can't perform that operation. " +
-              "This system only allows read-only SELECT queries — write operations such as DELETE, INSERT, UPDATE, DROP, and ALTER are not permitted.",
-            error: "Operation not permitted",
+              "I'm sorry, but I wasn't able to complete your request. " +
+              "The query required too many processing steps. This can happen when the generated query fails validation repeatedly. " +
+              "Please try rephrasing your question or simplifying your request.",
+            error: "Processing limit reached",
           },
           { status: 400 }
         );

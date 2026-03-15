@@ -1,530 +1,435 @@
 @prefix rr:  <http://www.w3.org/ns/r2rml#> .
+@prefix rml: <http://semweb.mmlab.be/ns/rml#> .
+@prefix ql:  <http://semweb.mmlab.be/ns/ql#> .
 @prefix ex:  <http://example.org/ontology/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-<#ActorTriplesMap>
-  rr:logicalTable [ rr:tableName "actor" ] ;
+@base <http://example.org/mapping/airlines/> .
+
+<#AircraftTriplesMap>
+  a rr:TriplesMap ;
+  rr:logicalTable [
+    rr:tableName "aircrafts_data" ;
+  ] ;
   rr:subjectMap [
-    rr:template "http://example.org/resource/actor/{actor_id}" ;
-    rr:class ex:Actor
+    rr:template "http://example.org/resource/aircraft/{aircraft_code}" ;
+    rr:class ex:Aircraft ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:actorId ;
-    rr:objectMap [ rr:column "actor_id" ; rr:datatype xsd:integer ]
+    rr:predicate ex:aircraftCode ;
+    rr:objectMap [
+      rr:column "aircraft_code" ;
+      rr:datatype xsd:string ;
+    ] ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:firstName ;
-    rr:objectMap [ rr:column "first_name" ; rr:datatype xsd:string ]
+    rr:predicate ex:modelJson ;
+    rr:objectMap [
+      rr:column "model" ;
+      rr:datatype xsd:string ;
+    ] ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:lastName ;
-    rr:objectMap [ rr:column "last_name" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
+    rr:predicate ex:rangeKm ;
+    rr:objectMap [
+      rr:column "range" ;
+      rr:datatype xsd:integer ;
+    ] ;
   ] .
 
-<#AddressTriplesMap>
-  rr:logicalTable [ rr:tableName "address" ] ;
+<#AirportTriplesMap>
+  a rr:TriplesMap ;
+  rr:logicalTable [
+    rr:tableName "airports_data" ;
+  ] ;
   rr:subjectMap [
-    rr:template "http://example.org/resource/address/{address_id}" ;
-    rr:class ex:Address
+    rr:template "http://example.org/resource/airport/{airport_code}" ;
+    rr:class ex:Airport ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:addressId ;
-    rr:objectMap [ rr:column "address_id" ; rr:datatype xsd:integer ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:addressLine1 ;
-    rr:objectMap [ rr:column "address" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:addressLine2 ;
-    rr:objectMap [ rr:column "address2" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:district ;
-    rr:objectMap [ rr:column "district" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:postalCode ;
-    rr:objectMap [ rr:column "postal_code" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:phone ;
-    rr:objectMap [ rr:column "phone" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:city ;
+    rr:predicate ex:airportCode ;
     rr:objectMap [
-      rr:parentTriplesMap <#CityTriplesMap> ;
-      rr:joinCondition [ rr:child "city_id" ; rr:parent "city_id" ]
-    ]
+      rr:column "airport_code" ;
+      rr:datatype xsd:string ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:airportNameJson ;
+    rr:objectMap [
+      rr:column "airport_name" ;
+      rr:datatype xsd:string ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:cityJson ;
+    rr:objectMap [
+      rr:column "city" ;
+      rr:datatype xsd:string ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:coordinates ;
+    rr:objectMap [
+      rr:column "coordinates" ;
+      rr:datatype xsd:string ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:timezone ;
+    rr:objectMap [
+      rr:column "timezone" ;
+      rr:datatype xsd:string ;
+    ] ;
   ] .
 
-<#CategoryTriplesMap>
-  rr:logicalTable [ rr:tableName "category" ] ;
+<#BookingTriplesMap>
+  a rr:TriplesMap ;
+  rr:logicalTable [
+    rr:tableName "bookings" ;
+  ] ;
   rr:subjectMap [
-    rr:template "http://example.org/resource/category/{category_id}" ;
-    rr:class ex:Category
+    rr:template "http://example.org/resource/booking/{book_ref}" ;
+    rr:class ex:Booking ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:categoryId ;
-    rr:objectMap [ rr:column "category_id" ; rr:datatype xsd:integer ]
+    rr:predicate ex:bookingReference ;
+    rr:objectMap [
+      rr:column "book_ref" ;
+      rr:datatype xsd:string ;
+    ] ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:name ;
-    rr:objectMap [ rr:column "name" ; rr:datatype xsd:string ]
+    rr:predicate ex:bookingDateTime ;
+    rr:objectMap [
+      rr:column "book_date" ;
+      rr:datatype xsd:dateTime ;
+    ] ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
+    rr:predicate ex:totalAmount ;
+    rr:objectMap [
+      rr:column "total_amount" ;
+      rr:datatype xsd:decimal ;
+    ] ;
   ] .
 
-<#CityTriplesMap>
-  rr:logicalTable [ rr:tableName "city" ] ;
+<#TicketTriplesMap>
+  a rr:TriplesMap ;
+  rr:logicalTable [
+    rr:tableName "tickets" ;
+  ] ;
   rr:subjectMap [
-    rr:template "http://example.org/resource/city/{city_id}" ;
-    rr:class ex:City
+    rr:template "http://example.org/resource/ticket/{ticket_no}" ;
+    rr:class ex:Ticket ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:cityId ;
-    rr:objectMap [ rr:column "city_id" ; rr:datatype xsd:integer ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:name ;
-    rr:objectMap [ rr:column "city" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:country ;
+    rr:predicate ex:ticketNumber ;
     rr:objectMap [
-      rr:parentTriplesMap <#CountryTriplesMap> ;
-      rr:joinCondition [ rr:child "country_id" ; rr:parent "country_id" ]
-    ]
+      rr:column "ticket_no" ;
+      rr:datatype xsd:string ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:passengerId ;
+    rr:objectMap [
+      rr:column "passenger_id" ;
+      rr:datatype xsd:string ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:passengerName ;
+    rr:objectMap [
+      rr:column "passenger_name" ;
+      rr:datatype xsd:string ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:contactDataJson ;
+    rr:objectMap [
+      rr:column "contact_data" ;
+      rr:datatype xsd:string ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:booking ;
+    rr:objectMap [
+      rr:parentTriplesMap <#BookingTriplesMap> ;
+      rr:joinCondition [
+        rr:child "book_ref" ;
+        rr:parent "book_ref" ;
+      ] ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:bookRef ;
+    rr:objectMap [
+      rr:column "book_ref" ;
+      rr:datatype xsd:string ;
+    ] ;
   ] .
 
-<#CountryTriplesMap>
-  rr:logicalTable [ rr:tableName "country" ] ;
+<#FlightTriplesMap>
+  a rr:TriplesMap ;
+  rr:logicalTable [
+    rr:tableName "flights" ;
+  ] ;
   rr:subjectMap [
-    rr:template "http://example.org/resource/country/{country_id}" ;
-    rr:class ex:Country
+    rr:template "http://example.org/resource/flight/{flight_id}" ;
+    rr:class ex:Flight ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:countryId ;
-    rr:objectMap [ rr:column "country_id" ; rr:datatype xsd:integer ]
+    rr:predicate ex:flightId ;
+    rr:objectMap [
+      rr:column "flight_id" ;
+      rr:datatype xsd:integer ;
+    ] ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:name ;
-    rr:objectMap [ rr:column "country" ; rr:datatype xsd:string ]
+    rr:predicate ex:flightNumber ;
+    rr:objectMap [
+      rr:column "flight_no" ;
+      rr:datatype xsd:string ;
+    ] ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
+    rr:predicate ex:scheduledDeparture ;
+    rr:objectMap [
+      rr:column "scheduled_departure" ;
+      rr:datatype xsd:dateTime ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:scheduledArrival ;
+    rr:objectMap [
+      rr:column "scheduled_arrival" ;
+      rr:datatype xsd:dateTime ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:status ;
+    rr:objectMap [
+      rr:column "status" ;
+      rr:datatype xsd:string ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:actualDeparture ;
+    rr:objectMap [
+      rr:column "actual_departure" ;
+      rr:datatype xsd:dateTime ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:actualArrival ;
+    rr:objectMap [
+      rr:column "actual_arrival" ;
+      rr:datatype xsd:dateTime ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:departureAirport ;
+    rr:objectMap [
+      rr:parentTriplesMap <#AirportTriplesMap> ;
+      rr:joinCondition [
+        rr:child "departure_airport" ;
+        rr:parent "airport_code" ;
+      ] ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:arrivalAirport ;
+    rr:objectMap [
+      rr:parentTriplesMap <#AirportTriplesMap> ;
+      rr:joinCondition [
+        rr:child "arrival_airport" ;
+        rr:parent "airport_code" ;
+      ] ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:aircraft ;
+    rr:objectMap [
+      rr:parentTriplesMap <#AircraftTriplesMap> ;
+      rr:joinCondition [
+        rr:child "aircraft_code" ;
+        rr:parent "aircraft_code" ;
+      ] ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:departureAirportCode ;
+    rr:objectMap [
+      rr:column "departure_airport" ;
+      rr:datatype xsd:string ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:arrivalAirportCode ;
+    rr:objectMap [
+      rr:column "arrival_airport" ;
+      rr:datatype xsd:string ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:aircraftCode ;
+    rr:objectMap [
+      rr:column "aircraft_code" ;
+      rr:datatype xsd:string ;
+    ] ;
   ] .
 
-<#CustomerTriplesMap>
-  rr:logicalTable [ rr:tableName "customer" ] ;
+<#SeatTriplesMap>
+  a rr:TriplesMap ;
+  rr:logicalTable [
+    rr:tableName "seats" ;
+  ] ;
   rr:subjectMap [
-    rr:template "http://example.org/resource/customer/{customer_id}" ;
-    rr:class ex:Customer
+    rr:template "http://example.org/resource/seat/{aircraft_code}/{seat_no}" ;
+    rr:class ex:Seat ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:customerId ;
-    rr:objectMap [ rr:column "customer_id" ; rr:datatype xsd:integer ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:firstName ;
-    rr:objectMap [ rr:column "first_name" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastName ;
-    rr:objectMap [ rr:column "last_name" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:email ;
-    rr:objectMap [ rr:column "email" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:activeBool ;
-    rr:objectMap [ rr:column "activebool" ; rr:datatype xsd:boolean ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:createDate ;
-    rr:objectMap [ rr:column "create_date" ; rr:datatype xsd:date ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:active ;
+    rr:predicate ex:seatNumber ;
     rr:objectMap [
-      rr:column "active" ;
-      rr:datatype xsd:integer
-    ]
+      rr:column "seat_no" ;
+      rr:datatype xsd:string ;
+    ] ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:address ;
+    rr:predicate ex:fareConditions ;
     rr:objectMap [
-      rr:parentTriplesMap <#AddressTriplesMap> ;
-      rr:joinCondition [ rr:child "address_id" ; rr:parent "address_id" ]
-    ]
+      rr:column "fare_conditions" ;
+      rr:datatype xsd:string ;
+    ] ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:store ;
+    rr:predicate ex:aircraft ;
     rr:objectMap [
-      rr:parentTriplesMap <#StoreTriplesMap> ;
-      rr:joinCondition [ rr:child "store_id" ; rr:parent "store_id" ]
-    ]
+      rr:parentTriplesMap <#AircraftTriplesMap> ;
+      rr:joinCondition [
+        rr:child "aircraft_code" ;
+        rr:parent "aircraft_code" ;
+      ] ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:aircraftCode ;
+    rr:objectMap [
+      rr:column "aircraft_code" ;
+      rr:datatype xsd:string ;
+    ] ;
   ] .
 
-<#FilmTriplesMap>
-  rr:logicalTable [ rr:tableName "film" ] ;
+<#TicketFlightTriplesMap>
+  a rr:TriplesMap ;
+  rr:logicalTable [
+    rr:tableName "ticket_flights" ;
+  ] ;
   rr:subjectMap [
-    rr:template "http://example.org/resource/film/{film_id}" ;
-    rr:class ex:Film
+    rr:template "http://example.org/resource/ticket-flight/{ticket_no}/{flight_id}" ;
+    rr:class ex:TicketFlight ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:filmId ;
-    rr:objectMap [ rr:column "film_id" ; rr:datatype xsd:integer ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:title ;
-    rr:objectMap [ rr:column "title" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:description ;
-    rr:objectMap [ rr:column "description" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:releaseYear ;
-    rr:objectMap [ rr:column "release_year" ; rr:datatype xsd:integer ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:rentalDuration ;
-    rr:objectMap [ rr:column "rental_duration" ; rr:datatype xsd:integer ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:rentalRate ;
-    rr:objectMap [ rr:column "rental_rate" ; rr:datatype xsd:decimal ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:length ;
-    rr:objectMap [ rr:column "length" ; rr:datatype xsd:integer ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:replacementCost ;
-    rr:objectMap [ rr:column "replacement_cost" ; rr:datatype xsd:decimal ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:rating ;
+    rr:predicate ex:fareConditions ;
     rr:objectMap [
-      rr:column "rating" ;
-      rr:datatype xsd:string
-    ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:specialFeatures ;
-    rr:objectMap [
-      rr:column "special_features" ;
-      rr:datatype xsd:string
-    ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:fulltext ;
-    rr:objectMap [
-      rr:column "fulltext" ;
-      rr:datatype xsd:string
-    ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:language ;
-    rr:objectMap [
-      rr:parentTriplesMap <#LanguageTriplesMap> ;
-      rr:joinCondition [ rr:child "language_id" ; rr:parent "language_id" ]
-    ]
-  ] .
-
-<#FilmActorTriplesMap>
-  rr:logicalTable [ rr:tableName "film_actor" ] ;
-  rr:subjectMap [
-    rr:template "http://example.org/resource/filmActor/{film_id}-{actor_id}" ;
-    rr:class ex:FilmActor
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:film ;
-    rr:objectMap [
-      rr:parentTriplesMap <#FilmTriplesMap> ;
-      rr:joinCondition [ rr:child "film_id" ; rr:parent "film_id" ]
-    ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:actor ;
-    rr:objectMap [
-      rr:parentTriplesMap <#ActorTriplesMap> ;
-      rr:joinCondition [ rr:child "actor_id" ; rr:parent "actor_id" ]
-    ]
-  ] .
-
-<#FilmCategoryTriplesMap>
-  rr:logicalTable [ rr:tableName "film_category" ] ;
-  rr:subjectMap [
-    rr:template "http://example.org/resource/filmCategory/{film_id}-{category_id}" ;
-    rr:class ex:FilmCategory
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:film ;
-    rr:objectMap [
-      rr:parentTriplesMap <#FilmTriplesMap> ;
-      rr:joinCondition [ rr:child "film_id" ; rr:parent "film_id" ]
-    ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:category ;
-    rr:objectMap [
-      rr:parentTriplesMap <#CategoryTriplesMap> ;
-      rr:joinCondition [ rr:child "category_id" ; rr:parent "category_id" ]
-    ]
-  ] .
-
-<#InventoryTriplesMap>
-  rr:logicalTable [ rr:tableName "inventory" ] ;
-  rr:subjectMap [
-    rr:template "http://example.org/resource/inventory/{inventory_id}" ;
-    rr:class ex:Inventory
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:inventoryId ;
-    rr:objectMap [ rr:column "inventory_id" ; rr:datatype xsd:integer ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:film ;
-    rr:objectMap [
-      rr:parentTriplesMap <#FilmTriplesMap> ;
-      rr:joinCondition [ rr:child "film_id" ; rr:parent "film_id" ]
-    ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:store ;
-    rr:objectMap [
-      rr:parentTriplesMap <#StoreTriplesMap> ;
-      rr:joinCondition [ rr:child "store_id" ; rr:parent "store_id" ]
-    ]
-  ] .
-
-<#LanguageTriplesMap>
-  rr:logicalTable [ rr:tableName "language" ] ;
-  rr:subjectMap [
-    rr:template "http://example.org/resource/language/{language_id}" ;
-    rr:class ex:Language
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:languageId ;
-    rr:objectMap [ rr:column "language_id" ; rr:datatype xsd:integer ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:name ;
-    rr:objectMap [ rr:column "name" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
-  ] .
-
-<#PaymentTriplesMap>
-  rr:logicalTable [ rr:tableName "payment" ] ;
-  rr:subjectMap [
-    rr:template "http://example.org/resource/payment/{payment_id}" ;
-    rr:class ex:Payment
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:paymentId ;
-    rr:objectMap [ rr:column "payment_id" ; rr:datatype xsd:integer ]
+      rr:column "fare_conditions" ;
+      rr:datatype xsd:string ;
+    ] ;
   ] ;
   rr:predicateObjectMap [
     rr:predicate ex:amount ;
-    rr:objectMap [ rr:column "amount" ; rr:datatype xsd:decimal ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:paymentDate ;
-    rr:objectMap [ rr:column "payment_date" ; rr:datatype xsd:dateTime ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:customer ;
     rr:objectMap [
-      rr:parentTriplesMap <#CustomerTriplesMap> ;
-      rr:joinCondition [ rr:child "customer_id" ; rr:parent "customer_id" ]
-    ]
+      rr:column "amount" ;
+      rr:datatype xsd:decimal ;
+    ] ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:staff ;
+    rr:predicate ex:ticket ;
     rr:objectMap [
-      rr:parentTriplesMap <#StaffTriplesMap> ;
-      rr:joinCondition [ rr:child "staff_id" ; rr:parent "staff_id" ]
-    ]
+      rr:parentTriplesMap <#TicketTriplesMap> ;
+      rr:joinCondition [
+        rr:child "ticket_no" ;
+        rr:parent "ticket_no" ;
+      ] ;
+    ] ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:rental ;
+    rr:predicate ex:flight ;
     rr:objectMap [
-      rr:parentTriplesMap <#RentalTriplesMap> ;
-      rr:joinCondition [ rr:child "rental_id" ; rr:parent "rental_id" ]
-    ]
+      rr:parentTriplesMap <#FlightTriplesMap> ;
+      rr:joinCondition [
+        rr:child "flight_id" ;
+        rr:parent "flight_id" ;
+      ] ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:ticketNumber ;
+    rr:objectMap [
+      rr:column "ticket_no" ;
+      rr:datatype xsd:string ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:flightId ;
+    rr:objectMap [
+      rr:column "flight_id" ;
+      rr:datatype xsd:integer ;
+    ] ;
   ] .
 
-<#RentalTriplesMap>
-  rr:logicalTable [ rr:tableName "rental" ] ;
+<#BoardingPassTriplesMap>
+  a rr:TriplesMap ;
+  rr:logicalTable [
+    rr:tableName "boarding_passes" ;
+  ] ;
   rr:subjectMap [
-    rr:template "http://example.org/resource/rental/{rental_id}" ;
-    rr:class ex:Rental
+    rr:template "http://example.org/resource/boarding-pass/{ticket_no}/{flight_id}" ;
+    rr:class ex:BoardingPass ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:rentalId ;
-    rr:objectMap [ rr:column "rental_id" ; rr:datatype xsd:integer ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:rentalDate ;
-    rr:objectMap [ rr:column "rental_date" ; rr:datatype xsd:dateTime ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:returnDate ;
-    rr:objectMap [ rr:column "return_date" ; rr:datatype xsd:dateTime ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:inventory ;
+    rr:predicate ex:boardingNumber ;
     rr:objectMap [
-      rr:parentTriplesMap <#InventoryTriplesMap> ;
-      rr:joinCondition [ rr:child "inventory_id" ; rr:parent "inventory_id" ]
-    ]
+      rr:column "boarding_no" ;
+      rr:datatype xsd:integer ;
+    ] ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:customer ;
+    rr:predicate ex:seatNumber ;
     rr:objectMap [
-      rr:parentTriplesMap <#CustomerTriplesMap> ;
-      rr:joinCondition [ rr:child "customer_id" ; rr:parent "customer_id" ]
-    ]
+      rr:column "seat_no" ;
+      rr:datatype xsd:string ;
+    ] ;
   ] ;
   rr:predicateObjectMap [
-    rr:predicate ex:staff ;
+    rr:predicate ex:ticketFlight ;
     rr:objectMap [
-      rr:parentTriplesMap <#StaffTriplesMap> ;
-      rr:joinCondition [ rr:child "staff_id" ; rr:parent "staff_id" ]
-    ]
+      rr:parentTriplesMap <#TicketFlightTriplesMap> ;
+      rr:joinCondition [
+        rr:child "ticket_no" ;
+        rr:parent "ticket_no" ;
+      ] ;
+      rr:joinCondition [
+        rr:child "flight_id" ;
+        rr:parent "flight_id" ;
+      ] ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:ticketNumber ;
+    rr:objectMap [
+      rr:column "ticket_no" ;
+      rr:datatype xsd:string ;
+    ] ;
+  ] ;
+  rr:predicateObjectMap [
+    rr:predicate ex:flightId ;
+    rr:objectMap [
+      rr:column "flight_id" ;
+      rr:datatype xsd:integer ;
+    ] ;
   ] .
 
-<#StaffTriplesMap>
-  rr:logicalTable [ rr:tableName "staff" ] ;
-  rr:subjectMap [
-    rr:template "http://example.org/resource/staff/{staff_id}" ;
-    rr:class ex:Staff
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:staffId ;
-    rr:objectMap [ rr:column "staff_id" ; rr:datatype xsd:integer ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:firstName ;
-    rr:objectMap [ rr:column "first_name" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastName ;
-    rr:objectMap [ rr:column "last_name" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:email ;
-    rr:objectMap [ rr:column "email" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:active ;
-    rr:objectMap [ rr:column "active" ; rr:datatype xsd:boolean ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:username ;
-    rr:objectMap [ rr:column "username" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:password ;
-    rr:objectMap [ rr:column "password" ; rr:datatype xsd:string ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:picture ;
-    rr:objectMap [
-      rr:column "picture" ;
-      rr:datatype xsd:base64Binary
-    ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:address ;
-    rr:objectMap [
-      rr:parentTriplesMap <#AddressTriplesMap> ;
-      rr:joinCondition [ rr:child "address_id" ; rr:parent "address_id" ]
-    ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:store ;
-    rr:objectMap [
-      rr:parentTriplesMap <#StoreTriplesMap> ;
-      rr:joinCondition [ rr:child "store_id" ; rr:parent "store_id" ]
-    ]
-  ] .
-
-<#StoreTriplesMap>
-  rr:logicalTable [ rr:tableName "store" ] ;
-  rr:subjectMap [
-    rr:template "http://example.org/resource/store/{store_id}" ;
-    rr:class ex:Store
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:storeId ;
-    rr:objectMap [ rr:column "store_id" ; rr:datatype xsd:integer ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:lastUpdate ;
-    rr:objectMap [ rr:column "last_update" ; rr:datatype xsd:dateTime ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:manager ;
-    rr:objectMap [
-      rr:parentTriplesMap <#StaffTriplesMap> ;
-      rr:joinCondition [ rr:child "manager_staff_id" ; rr:parent "staff_id" ]
-    ]
-  ] ;
-  rr:predicateObjectMap [
-    rr:predicate ex:address ;
-    rr:objectMap [
-      rr:parentTriplesMap <#AddressTriplesMap> ;
-      rr:joinCondition [ rr:child "address_id" ; rr:parent "address_id" ]
-    ]
-  ] .
+# Assumptions / notes:
+# - JSONB columns (aircrafts_data.model, airports_data.airport_name, airports_data.city, tickets.contact_data) are mapped as xsd:string literals (serialized JSON) via ex:*Json properties because no explicit ontology structure for multilingual/contact subfields was provided.
+# - airports_data.coordinates (PostgreSQL point) is mapped as xsd:string via ex:coordinates because no explicit geo ontology/property was provided.
+# - Some redundant code columns (e.g., flights.departure_airport, flights.arrival_airport, flights.aircraft_code, tickets.book_ref) are also mapped as literals alongside object properties for convenience/traceability.

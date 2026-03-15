@@ -12,7 +12,11 @@ loadEnv(__dirname);
 // App Configuration
 // ============================================================================
 
-const llmConfig = createLLMConfig();
+const llmConfig = createLLMConfig({
+  ...(process.env.MI_GOOGLE_MODEL    && { googleModel:    process.env.MI_GOOGLE_MODEL }),
+  ...(process.env.MI_ANTHROPIC_MODEL && { anthropicModel: process.env.MI_ANTHROPIC_MODEL }),
+  ...(process.env.MI_GROQ_MODEL      && { groqModel:      process.env.MI_GROQ_MODEL }),
+});
 
 export const config: AppConfig = {
   ...llmConfig,
