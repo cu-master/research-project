@@ -4,15 +4,16 @@ import { getProject, updateProject, deleteProject } from "@/lib/db/projects";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const userId = await getAuthUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const project = await getProject(params.id, userId);
+    const project = await getProject(id, userId);
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
@@ -29,9 +30,10 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const userId = await getAuthUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -41,7 +43,7 @@ export async function PUT(
     if (body.db_port !== undefined && typeof body.db_port === "string") {
       body.db_port = body.db_port ? parseInt(body.db_port, 10) : undefined;
     }
-    const project = await updateProject(params.id, userId, body);
+    const project = await updateProject(id, userId, body);
 
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -59,15 +61,16 @@ export async function PUT(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const userId = await getAuthUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const deleted = await deleteProject(params.id, userId);
+    const deleted = await deleteProject(id, userId);
     if (!deleted) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }

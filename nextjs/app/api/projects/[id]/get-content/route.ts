@@ -13,15 +13,16 @@ import { fetchAndExtractUrlContent } from "@/lib/url-content";
  */
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const userId = await getAuthUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const project = await getProject(params.id, userId);
+    const project = await getProject(id, userId);
     if (!project) {
       return NextResponse.json(
         { error: "Project not found" },
@@ -78,7 +79,7 @@ export async function POST(
 
     // Store the merged content as plain text in the project
     const updated = await updateProjectContent(
-      params.id,
+      id,
       userId,
       mergedContent
     );

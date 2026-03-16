@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 interface Session {
@@ -40,7 +40,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [hasUnsavedWork, setHasUnsavedWork] = useState(false);
 
-  const refreshSessions = async () => {
+  const refreshSessions = useCallback(async () => {
     try {
       const response = await fetch("/api/sessions?type=active");
       if (response.ok) {
@@ -50,7 +50,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Failed to refresh sessions:", error);
     }
-  };
+  }, []);
 
   // Sync with URL path
   useEffect(() => {
@@ -62,11 +62,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // URL cleared (navigated to /), clear session context immediately
       setCurrentSessionId(null);
     }
-  }, [pathname]);
+  }, [pathname, currentSessionId]);
 
   useEffect(() => {
     refreshSessions();
-  }, []);
+  }, [refreshSessions]);
 
   return (
     <SessionContext.Provider

@@ -2,9 +2,19 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 // ── Container lifecycle ───────────────────────────────────────────────────────
 
-let container: StartedPostgreSqlContainer;
-
 import { execSync } from "child_process";
+let container: StartedPostgreSqlContainer | undefined;
+
+const hasContainerRuntime = (() => {
+    try {
+        execSync("docker info", { stdio: "ignore" });
+        return true;
+    } catch {
+        return false;
+    }
+})();
+
+const itIfContainer = hasContainerRuntime ? it : it.skip;
 
 let createProject: typeof import("./projects").createProject;
 let getProject: typeof import("./projects").getProject;
@@ -16,6 +26,10 @@ const USER_A = "00000000-0000-0000-0001-000000000001";
 const USER_B = "00000000-0000-0000-0001-000000000002";
 
 beforeAll(async () => {
+    if (!hasContainerRuntime) {
+        return;
+    }
+
     container = await new PostgreSqlContainer("postgres:16-alpine").start();
     process.env.DATABASE_URL = container.getConnectionUri();
 
@@ -43,13 +57,15 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-    await container.stop();
+    if (container) {
+        await container.stop();
+    }
 });
 
 // ── createProject / getProject ────────────────────────────────────────────────
 
 describe("createProject / getProject", () => {
-    it("persists a new project and retrieves it by ID + owner", async () => {
+    itIfContainer("persists a new project and retrieves it by ID + owner", async () => {
         const project = await createProject(USER_A, { name: "My Project" });
         expect(project.id).toBeTruthy();
         expect(project.name).toBe("My Project");
@@ -60,18 +76,18 @@ describe("createProject / getProject", () => {
         expect(found!.name).toBe("My Project");
     });
 
-    it("returns null when queried by a different user", async () => {
+    itIfContainer("returns null when queried by a different user", async () => {
         const project = await createProject(USER_A, { name: "Private Project" });
         const found = await getProject(project.id, USER_B);
         expect(found).toBeNull();
     });
 
-    it("returns null for a non-existent project ID", async () => {
+    itIfContainer("returns null for a non-existent project ID", async () => {
         const found = await getProject("00000000-dead-beef-0000-000000000000", USER_A);
         expect(found).toBeNull();
     });
 
-    it("persists DB connection fields when provided", async () => {
+    itIfContainer("persists DB connection fields when provided", async () => {
         const project = await createProject(USER_A, {
             name: "DB Project",
             db_type: "postgresql",
@@ -86,7 +102,7 @@ describe("createProject / getProject", () => {
         expect(found!.db_ssl).toBe(true);
     });
 
-    it("persists r2rml_mapping when provided", async () => {
+    itIfContainer("persists r2rml_mapping when provided", async () => {
         const mapping = "@prefix rr: <http://www.w3.org/ns/r2rml#> .";
         const project = await createProject(USER_A, { name: "R2RML Project", r2rml_mapping: mapping });
         const found = await getProject(project.id, USER_A);
@@ -97,7 +113,7 @@ describe("createProject / getProject", () => {
 // ── getProjectsByUser ─────────────────────────────────────────────────────────
 
 describe("getProjectsByUser", () => {
-    it("returns only projects owned by the given user", async () => {
+    itIfContainer("returns only projects owned by the given user", async () => {
         await createProject(USER_A, { name: "A-proj-1" });
         await createProject(USER_B, { name: "B-proj-1" });
 
@@ -108,7 +124,7 @@ describe("getProjectsByUser", () => {
         userBProjects.forEach((p) => expect(p.user_id).toBe(USER_B));
     });
 
-    it("returns an empty array for a user with no projects", async () => {
+    itIfContainer("returns an empty array for a user with no projects", async () => {
         const noProjects = await getProjectsByUser("00000000-0000-0000-0000-ffff00000000");
         expect(noProjects).toHaveLength(0);
     });
@@ -117,20 +133,20 @@ describe("getProjectsByUser", () => {
 // ── updateProject ─────────────────────────────────────────────────────────────
 
 describe("updateProject", () => {
-    it("updates the project name", async () => {
+    itIfContainer("updates the project name", async () => {
         const project = await createProject(USER_A, { name: "Old Name" });
         const updated = await updateProject(project.id, USER_A, { name: "New Name" });
         expect(updated?.name).toBe("New Name");
     });
 
-    it("updates the r2rml_mapping field", async () => {
+    itIfContainer("updates the r2rml_mapping field", async () => {
         const project = await createProject(USER_A, { name: "Mapping Project" });
         const mapping = "@prefix rr: <http://www.w3.org/ns/r2rml#> . <#Map> rr:logicalTable [].";
         const updated = await updateProject(project.id, USER_A, { r2rml_mapping: mapping });
         expect(updated?.r2rml_mapping).toBe(mapping);
     });
 
-    it("does not update a project owned by a different user", async () => {
+    itIfContainer("does not update a project owned by a different user", async () => {
         const project = await createProject(USER_A, { name: "Owner A Project" });
         const updated = await updateProject(project.id, USER_B, { name: "Stolen Name" });
         expect(updated).toBeNull();
@@ -140,7 +156,7 @@ describe("updateProject", () => {
 // ── deleteProject ─────────────────────────────────────────────────────────────
 
 describe("deleteProject", () => {
-    it("deletes a project and returns true", async () => {
+    itIfContainer("deletes a project and returns true", async () => {
         const project = await createProject(USER_A, { name: "To Delete" });
         const result = await deleteProject(project.id, USER_A);
         expect(result).toBe(true);
@@ -149,12 +165,12 @@ describe("deleteProject", () => {
         expect(found).toBeNull();
     });
 
-    it("returns false when trying to delete a non-existent project", async () => {
+    itIfContainer("returns false when trying to delete a non-existent project", async () => {
         const result = await deleteProject("00000000-dead-beef-0000-000000000001", USER_A);
         expect(result).toBe(false);
     });
 
-    it("returns false when trying to delete another user's project", async () => {
+    itIfContainer("returns false when trying to delete another user's project", async () => {
         const project = await createProject(USER_A, { name: "Not Yours" });
         const result = await deleteProject(project.id, USER_B);
         expect(result).toBe(false);
