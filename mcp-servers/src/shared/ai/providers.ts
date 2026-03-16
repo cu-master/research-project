@@ -142,7 +142,10 @@ async function callGroq(
   }
 
   const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
+    choices?: Array<{
+      message?: { content?: string };
+      finish_reason?: string;
+    }>;
   };
 
   const text = data.choices?.[0]?.message?.content;

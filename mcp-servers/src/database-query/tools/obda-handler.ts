@@ -177,7 +177,8 @@ RULES:
 8. For ORDER BY, always place ASC/DESC BEFORE the variable in parentheses: ORDER BY ASC(?var) or ORDER BY DESC(?var). NEVER write ORDER BY ?var ASC — that is invalid SPARQL.
 9. NEVER use FILTER NOT EXISTS, FILTER EXISTS, or MINUS — Ontop does not support them. Instead, use OPTIONAL + FILTER(!BOUND(?var)). Example — WRONG: FILTER NOT EXISTS { ?rental ex:rentedItem ?item }. CORRECT: OPTIONAL { ?rental ex:rentedItem ?item } FILTER(!BOUND(?rental)).
 10. Default to LIMIT 100 unless the question specifies a different limit.
-11. Output ONLY the SPARQL query text. No markdown code fences. No explanations.`;
+11. The output MUST be a complete query: all PREFIX lines, a full SELECT ... WHERE { ... } block, balanced braces/parentheses, and no dangling tokens (for example ending with "?" or "ex:").
+12. Output ONLY the SPARQL query text. No markdown code fences. No explanations.`;
 
 function buildSparqlPrompt(
   query: string,
@@ -601,7 +602,7 @@ export async function handleObdaQuery(
       r2rmlMapping
     )}`;
 
-    let llmResponse = await callAI(sparqlPrompt, 2000);
+    let llmResponse = await callAI(sparqlPrompt, 6000);
     let sparqlQuery = extractSparqlFromResponse(llmResponse);
     console.log(`[OBDA] Generated SPARQL:\n${sparqlQuery}`);
 
@@ -643,7 +644,7 @@ export async function handleObdaQuery(
 
       // Ask the LLM to fix the specific parse error.
       const fixPrompt = buildSparqlFixPrompt(sparqlQuery, syntaxCheck.error ?? "", r2rmlMapping);
-      llmResponse = await callAI(fixPrompt, 2000);
+      llmResponse = await callAI(fixPrompt, 6000);
       sparqlQuery = extractSparqlFromResponse(llmResponse);
       console.log(`[OBDA] Fixed SPARQL (attempt ${attempt + 1}):\n${sparqlQuery}`);
     }
