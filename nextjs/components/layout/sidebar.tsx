@@ -36,50 +36,46 @@ export default function Sidebar() {
       }
     }
 
-    try {
-      let shouldRefreshSessions = false;
+    // Clear UI immediately so the chat surface resets without waiting for network
+    const sessionIdToArchive = currentSessionId;
+    router.replace("/", { scroll: false });
+    setCurrentSessionId(null);
 
-      // Archive current session only if it exists, is active (not already archived), and has messages
-      if (currentSessionId) {
-        // Check if session is active and has messages before archiving
-        const sessionResponse = await fetch(`/api/sessions?sessionId=${currentSessionId}`);
-        if (sessionResponse.ok) {
-          const sessionData = await sessionResponse.json();
-          const session = sessionData.session;
-          const messages = sessionData.messages || [];
+    // Run cleanup in the background — do not await before clearing UI
+    (async () => {
+      try {
+        let shouldRefreshSessions = false;
 
-          // Only archive if session is active (not already archived) and has messages
-          if (session && !session.is_archived && messages.length > 0) {
-            await fetch("/api/sessions/archive", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sessionId: currentSessionId }),
-            });
-            shouldRefreshSessions = true; // Only refresh if we actually archived
+        // Archive current session only if it exists, is active (not already archived), and has messages
+        if (sessionIdToArchive) {
+          const sessionResponse = await fetch(`/api/sessions?sessionId=${sessionIdToArchive}`);
+          if (sessionResponse.ok) {
+            const sessionData = await sessionResponse.json();
+            const session = sessionData.session;
+            const messages = sessionData.messages || [];
+
+            if (session && !session.is_archived && messages.length > 0) {
+              await fetch("/api/sessions/archive", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessionId: sessionIdToArchive }),
+              });
+              shouldRefreshSessions = true;
+            }
           }
         }
+
+        // Clear the model interpretation store
+        await fetch("/api/sessions/clear-store", { method: "POST" });
+
+        if (shouldRefreshSessions) {
+          await refreshSessions();
+          await loadAllSessions();
+        }
+      } catch (error) {
+        console.error("Failed to reset chat:", error);
       }
-
-      // Clear the model interpretation store
-      await fetch("/api/sessions/clear-store", {
-        method: "POST",
-      });
-
-      // Clear current session - new session will be created when user sends first message
-      // Clear URL parameter first to trigger URL sync
-      router.replace("/", { scroll: false });
-      // Then clear session context - this will trigger message reset in ChatSurface
-      setCurrentSessionId(null);
-
-      // Only refresh sessions if we actually made a change (archived a session)
-      // This prevents unnecessary reordering when just viewing old sessions
-      if (shouldRefreshSessions) {
-        await refreshSessions();
-        await loadAllSessions();
-      }
-    } catch (error) {
-      console.error("Failed to reset chat:", error);
-    }
+    })();
   };
 
   // Load both active and archived sessions

@@ -59,8 +59,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // URL has a sessionId, use it
       setCurrentSessionId(pathSessionId);
     } else if (!pathSessionId && currentSessionId) {
-      // URL cleared (navigated to /), clear session context immediately
-      setCurrentSessionId(null);
+      // usePathname() does not update when window.history.replaceState() is used
+      // (chat-surface uses replaceState to update the URL bar after session creation
+      // without triggering a Next.js navigation). Check the real browser URL before
+      // deciding to wipe the session — if the bar already shows /c/..., keep the session.
+      const browserSessionId = extractSessionIdFromPath(window.location.pathname);
+      if (!browserSessionId) {
+        setCurrentSessionId(null);
+      }
     }
   }, [pathname, currentSessionId]);
 

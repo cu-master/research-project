@@ -176,18 +176,18 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
   }, [messages]);
 
   const sendMessage = async (content: string, attachments: Attachment[] = []) => {
+    if (isSendingMessage) {
+      return;
+    }
+
     const trimmed = content.trim();
     if (!trimmed && attachments.length === 0) {
       return;
     }
 
-    // Cancel any existing request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
     // Create new abort controller for this request
-    abortControllerRef.current = new AbortController();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     // Set sending flag early to prevent loadMessages from running
     setIsSendingMessage(true);
@@ -202,8 +202,15 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
           body: JSON.stringify({
             projectId: sessionProjectId || undefined,
           }),
+          signal: controller.signal,
         });
-        const sessionData = await sessionResponse.json();
+        if (!sessionResponse.ok) {
+          throw new Error("Failed to create session");
+        }
+        const sessionData = (await sessionResponse.json()) as {
+          sessionId?: string;
+          projectId?: string | null;
+        };
         if (sessionData.sessionId) {
           sessionIdToUse = sessionData.sessionId;
           setCurrentSessionId(sessionIdToUse);
@@ -218,6 +225,10 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
           throw new Error("Failed to create session");
         }
       } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          setIsSendingMessage(false);
+          return;
+        }
         console.error("Failed to create session:", error);
         setError("Failed to create a new chat session. Please try again.");
         setIsSendingMessage(false);
@@ -267,7 +278,7 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
           attachments,
           sessionId: sessionIdToUse,
         }),
-        signal: abortControllerRef.current.signal
+        signal: controller.signal
       });
 
       if (!response.ok) {
@@ -349,7 +360,7 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
               </h1>
               <div className="w-full max-w-3xl">
                 <ChatInput
-                  disabled={false}
+                  disabled={isLoading || isSendingMessage}
                   isLoading={isLoading}
                   onSubmit={sendMessage}
                   onStop={handleStop}
@@ -377,7 +388,7 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
         <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-white via-white to-transparent pb-6 pt-10 px-4">
           <div className="mx-auto max-w-3xl">
             <ChatInput
-              disabled={false}
+              disabled={isLoading || isSendingMessage}
               isLoading={isLoading}
               onSubmit={sendMessage}
               onStop={handleStop}

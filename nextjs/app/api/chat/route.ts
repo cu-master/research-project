@@ -22,7 +22,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { message, history, sessionId } = await request.json();
+    let parsedBody: {
+      message?: unknown;
+      history?: unknown;
+      sessionId?: unknown;
+    };
+    try {
+      parsedBody = await request.json();
+    } catch {
+      return NextResponse.json(
+        {
+          response: "Invalid JSON body. Please send a valid JSON payload.",
+          error: "Bad request",
+        },
+        { status: 400 }
+      );
+    }
+
+    const { message, history, sessionId } = parsedBody;
     const safeMessage = typeof message === "string" ? message : "";
 
     console.log("Processing message:", safeMessage);
@@ -80,7 +97,8 @@ export async function POST(request: Request) {
       console.warn("[Context] Could not load project:", error);
     }
 
-    const chatHistory = (history || [])
+    const safeHistory = Array.isArray(history) ? history : [];
+    const chatHistory = safeHistory
       .map((msg: ChatMessage) => convertToLangChainMessage(msg))
       .filter((msg: HumanMessage | AIMessage | null): msg is HumanMessage | AIMessage => msg !== null);
 
