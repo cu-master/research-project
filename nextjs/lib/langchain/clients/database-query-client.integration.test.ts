@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { createServer } from "http";
 import type { AddressInfo } from "net";
+import { execSync } from "child_process";
 
 // ── Inline minimal MCP server for controlled test responses ─────────────────
 //
@@ -16,7 +17,18 @@ let server: ReturnType<typeof createServer>;
 let baseUrl: string;
 
 // ── Container (only needed for ensureProjectDatabase path) ───────────────────
-let container: StartedPostgreSqlContainer;
+let container: StartedPostgreSqlContainer | undefined;
+
+const hasContainerRuntime = (() => {
+    try {
+        execSync("docker info", { stdio: "ignore" });
+        return true;
+    } catch {
+        return false;
+    }
+})();
+
+const itIfContainer = hasContainerRuntime ? it : it.skip;
 
 let ensureProjectDatabase: typeof import("./database-query-client").ensureProjectDatabase;
 let callDatabaseQueryTool: typeof import("./database-query-client").callDatabaseQueryTool;
@@ -48,6 +60,10 @@ mockApp.post("/mcp/call-tool", (req, res) => {
 });
 
 beforeAll(async () => {
+    if (!hasContainerRuntime) {
+        return;
+    }
+
     // Start mock MCP server
     server = createServer(mockApp);
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -67,8 +83,12 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-    await container.stop();
+    if (server) {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+    if (container) {
+        await container.stop();
+    }
 });
 
 // ── ensureProjectDatabase ─────────────────────────────────────────────────────
@@ -86,12 +106,12 @@ describe("ensureProjectDatabase", () => {
         db_ssl: false,
     };
 
-    it("registers the database and returns the DB ID", async () => {
+    itIfContainer("registers the database and returns the DB ID", async () => {
         const result = await ensureProjectDatabase(baseProject);
         expect(result).toBe("project_proj-001");
     });
 
-    it("skips re-registration on a second call (in-process cache)", async () => {
+    itIfContainer("skips re-registration on a second call (in-process cache)", async () => {
         const spy = vi.spyOn(global, "fetch" as "fetch");
         // Second call for the same project should return the cached ID without fetch
         const result = await ensureProjectDatabase(baseProject);
@@ -100,7 +120,7 @@ describe("ensureProjectDatabase", () => {
         spy.mockRestore();
     });
 
-    it("returns null when required DB fields are missing", async () => {
+    itIfContainer("returns null when required DB fields are missing", async () => {
         const incomplete = { ...baseProject, db_host: null };
         const result = await ensureProjectDatabase(incomplete);
         expect(result).toBeNull();
@@ -110,23 +130,23 @@ describe("ensureProjectDatabase", () => {
 // ── callDatabaseQueryTool ─────────────────────────────────────────────────────
 
 describe("callDatabaseQueryTool", () => {
-    it("returns parsed text content from a successful tool call", async () => {
+    itIfContainer("returns parsed text content from a successful tool call", async () => {
         const result = await callDatabaseQueryTool("list-tables", {});
         expect(result).toContain("customers");
         expect(result).toContain("orders");
     });
 
-    it("throws an Error when the tool returns isError=true", async () => {
+    itIfContainer("throws an Error when the tool returns isError=true", async () => {
         await expect(callDatabaseQueryTool("error-tool", {})).rejects.toThrow(
             "Something went wrong"
         );
     });
 
-    it("throws with 'not found' message for an unknown tool", async () => {
+    itIfContainer("throws with 'not found' message for an unknown tool", async () => {
         await expect(callDatabaseQueryTool("ghost-tool", {})).rejects.toThrow();
     });
 
-    it("throws a readable ECONNREFUSED error when the server is not running", async () => {
+    itIfContainer("throws a readable ECONNREFUSED error when the server is not running", async () => {
         // Temporarily redirect to a port with no server
         process.env.DATABASE_QUERY_URL = "http://127.0.0.1:19999";
 

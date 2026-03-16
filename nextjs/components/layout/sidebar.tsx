@@ -106,7 +106,7 @@ export default function Sidebar() {
   // Load sessions on mount
   useEffect(() => {
     loadAllSessions();
-  }, []);
+  }, [loadAllSessions]);
 
   // Refresh sessions when currentSessionId changes (new session created or switched)
   useEffect(() => {
@@ -117,7 +117,7 @@ export default function Sidebar() {
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [currentSessionId]);
+  }, [currentSessionId, loadAllSessions]);
 
   // Listen for session update events from chat surface
   useEffect(() => {

@@ -10,7 +10,7 @@ import { getProject } from "@/lib/db/projects";
  */
 export async function PUT(
   request: Request,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
     const userId = await getAuthUserId();
@@ -18,7 +18,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { sessionId } = params;
+    const { sessionId } = await params;
     const { projectId } = await request.json();
 
     // Verify session exists and belongs to user

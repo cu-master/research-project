@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Attachment, Message } from "@/types/chat";
 import MessageBubble from "./message-bubble";
 import ChatInput from "./chat-input";
@@ -29,7 +29,7 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
   const [sessionProjectId, setSessionProjectId] = useState<string | null>(null);
 
   // Load the user's default project (used when no session exists yet)
-  const loadDefaultProject = async () => {
+  const loadDefaultProject = useCallback(async () => {
     try {
       const response = await fetch("/api/users/default-project");
       if (response.ok) {
@@ -41,7 +41,7 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
     } catch (error) {
       console.error("Failed to load default project:", error);
     }
-  };
+  }, []);
 
   // Initialize session on mount from prop (URL param via Next.js dynamic route)
   useEffect(() => {
@@ -52,7 +52,7 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
       loadDefaultProject();
     }
     setIsInitializing(false);
-  }, []);
+  }, [sessionIdProp, setCurrentSessionId, loadDefaultProject]);
 
   // Reset messages immediately when session is cleared (New Chat clicked)
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
       }
       return;
     }
-  }, [currentSessionId, setHasUnsavedWork]);
+  }, [currentSessionId, loadDefaultProject, setHasUnsavedWork]);
 
   // Load messages when session changes
   useEffect(() => {
