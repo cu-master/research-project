@@ -12,8 +12,8 @@
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:all": "npm test && npm run test:integration",
-    "benchmark:ai-accuracy": "node --experimental-strip-types scripts/run-ai-accuracy-benchmark.ts",
-    "benchmark:ai-accuracy:report": "node --experimental-strip-types scripts/run-ai-accuracy-benchmark.ts --strict"
+    "benchmark:ai-accuracy": "node --experimental-strip-types --experimental-specifier-resolution=node scripts/run-ai-accuracy-benchmark.ts",
+    "benchmark:ai-accuracy:report": "node --experimental-strip-types --experimental-specifier-resolution=node scripts/run-ai-accuracy-benchmark.ts --strict"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

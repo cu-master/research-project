@@ -3,14 +3,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   extractSqlText,
-  detectExecutionSuccess,
+  detectResponseSuccess,
   extractMarkdownTableSignature,
   evaluateRun,
   computeCaseMetrics,
   buildSummary,
   renderReport,
-} from "../lib/benchmarking/evaluator";
-import type { BenchmarkCase, BenchmarkConfig, BenchmarkRunArtifact } from "../lib/benchmarking/types";
+} from "../lib/benchmarking/evaluator.ts";
+import type { BenchmarkCase, BenchmarkConfig, BenchmarkRunArtifact } from "../lib/benchmarking/types.ts";
 
 interface CliOptions {
   baseUrl?: string;
@@ -23,8 +23,19 @@ interface CliOptions {
 
 interface ChatApiResponse {
   response?: string;
-  toolsUsed?: Array<{ observation?: string }>;
+  toolsUsed?: Array<{ tool?: string; observation?: string }>;
   error?: string;
+}
+
+interface ChatStreamDoneEvent {
+  type: "done";
+  response: string;
+  toolsUsed?: Array<{ tool?: string; observation?: string }>;
+}
+
+interface ChatStreamErrorEvent {
+  type: "error";
+  message: string;
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -57,9 +68,12 @@ async function main(): Promise<void> {
       let responseText = "";
       let sqlText = "";
       let resultSignature: string | null = null;
-      let executionSuccess = false;
+      let responseSuccess = false;
       let accuracyPass = false;
+      let toolCallCount = 0;
+      let toolNames: string[] = [];
       let runError: string | undefined;
+      let timeoutLike = false;
 
       try {
         const response = await postChat({
@@ -75,23 +89,31 @@ async function main(): Promise<void> {
 
         statusCode = response.statusCode;
         responseText = response.body.response ?? response.body.error ?? "";
-        const toolObservations = (response.body.toolsUsed ?? [])
+        const toolEntries = response.body.toolsUsed ?? [];
+        const toolObservations = toolEntries
           .map((toolEntry) => toolEntry.observation ?? "")
           .filter(Boolean);
+        toolCallCount = toolEntries.length;
+        toolNames = toolEntries.map((toolEntry) => toolEntry.tool ?? "").filter(Boolean);
 
         sqlText = extractSqlText(responseText, toolObservations);
         resultSignature = extractMarkdownTableSignature(responseText);
-        executionSuccess = detectExecutionSuccess(responseText, sqlText, statusCode);
-        accuracyPass = evaluateRun({
-          benchmarkCase,
-          responseText,
-          sqlText,
-          resultSignature,
-          executionSuccess,
-        });
+        responseSuccess = detectResponseSuccess(responseText, resultSignature, statusCode);
       } catch (error) {
         runError = error instanceof Error ? error.message : String(error);
+        timeoutLike = /aborted|abort|timeout/i.test(runError);
       }
+
+      accuracyPass = evaluateRun({
+        benchmarkCase,
+        responseText,
+        sqlText,
+        resultSignature,
+        responseSuccess,
+        toolCallCount,
+        error: runError,
+        timeoutLike,
+      });
 
       runs.push({
         caseId: benchmarkCase.id,
@@ -102,8 +124,11 @@ async function main(): Promise<void> {
         responseText,
         sqlText,
         resultSignature,
-        executionSuccess,
+        responseSuccess,
         accuracyPass,
+        toolCallCount,
+        toolNames,
+        timeoutLike,
         error: runError,
       });
 
@@ -214,11 +239,58 @@ async function postChat(params: {
       signal: controller.signal,
     });
 
-    const body = (await response.json()) as ChatApiResponse;
+    const rawBody = await response.text();
+    const body = parseChatResponse(rawBody);
     return { statusCode: response.status, body };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function parseChatResponse(rawBody: string): ChatApiResponse {
+  const trimmed = rawBody.trim();
+  if (!trimmed) return {};
+
+  // Try plain JSON first for backwards compatibility.
+  try {
+    return JSON.parse(trimmed) as ChatApiResponse;
+  } catch {}
+
+  // /api/chat currently streams NDJSON. Parse line-by-line and use final done/error event.
+  const lines = trimmed.split("\n").map((line) => line.trim()).filter(Boolean);
+  let parsed: ChatApiResponse = {};
+
+  for (const line of lines) {
+    let event: unknown;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue;
+    }
+
+    if (isDoneEvent(event)) {
+      parsed = {
+        response: event.response,
+        toolsUsed: event.toolsUsed ?? [],
+      };
+    } else if (isErrorEvent(event) && !parsed.response) {
+      parsed = { error: event.message };
+    }
+  }
+
+  return parsed;
+}
+
+function isDoneEvent(value: unknown): value is ChatStreamDoneEvent {
+  if (!value || typeof value !== "object") return false;
+  const maybeEvent = value as Partial<ChatStreamDoneEvent>;
+  return maybeEvent.type === "done" && typeof maybeEvent.response === "string";
+}
+
+function isErrorEvent(value: unknown): value is ChatStreamErrorEvent {
+  if (!value || typeof value !== "object") return false;
+  const maybeEvent = value as Partial<ChatStreamErrorEvent>;
+  return maybeEvent.type === "error" && typeof maybeEvent.message === "string";
 }
 
 function sleep(ms: number): Promise<void> {

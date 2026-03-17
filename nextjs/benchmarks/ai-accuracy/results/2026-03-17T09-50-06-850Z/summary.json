@@ -1,0 +1,20 @@
+{
+  "startedAt": "2026-03-17T09:45:47.116Z",
+  "finishedAt": "2026-03-17T09:50:06.847Z",
+  "totalCases": 4,
+  "totalRuns": 12,
+  "avgLatencyMs": 21644.25,
+  "p95LatencyMs": 45007,
+  "executionRate": 100,
+  "resultAccuracy": 0,
+  "consistencyScore": 33.33,
+  "refusalRate": 0,
+  "falsePositiveRate": 50,
+  "thresholds": {
+    "executionRateMin": 85,
+    "resultAccuracyMin": 80,
+    "consistencyScoreMin": 75,
+    "refusalRateMin": 90
+  },
+  "pass": false
+}

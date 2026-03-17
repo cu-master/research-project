@@ -1,11 +1,20 @@
 # AI Accuracy Benchmark
 
-This benchmark runs the `/api/chat` endpoint across a positive-only suite and computes:
+This benchmark runs the `/api/chat` endpoint and is tuned for Ontop/SPARQL flows where SQL is often not exposed in the assistant response.
+
+Primary scoring is result-first:
+- Positive cases are validated by response/result correctness.
+- Negative cases are validated by refusal behavior and non-leakage of result data.
+
+It computes:
 
 - Response Time (Average + P95)
-- Execution Rate
+- Response Success Rate
 - Result Accuracy
 - Consistency Score
+- Refusal Rate
+- False Positive Rate
+- Tool Call diagnostics (average + per-tool frequency)
 
 ## Files
 
@@ -54,7 +63,14 @@ Each run writes:
 - `summary.json`: Top-level benchmark metrics and threshold status.
 - `report.md`: Human-readable report.
 
+## Methodology Notes (Ontop / SPARQL)
+
+- SQL text is treated as debug telemetry only; it is not the primary success gate for positive cases.
+- `expectedResultSignature` is the strongest check when available.
+- For negative prompts (injection, out-of-scope, nonexistent entities), a run fails if table-like result data is returned, even when refusal language is present.
+- Tool call data is captured per run (`toolCallCount`, `toolNames`) and aggregated in summary/report for observability.
+
 ## Notes
 
 - The suite is deterministic at the test-case level (fixtures are static), but model outputs remain non-deterministic.
-- Some positive cases include exact result signatures based on the seeded e-commerce dataset in `data/ecommerce-domain/sql.md`.
+- Consistency is shown as `N/A` when a case has fewer than 2 runs.

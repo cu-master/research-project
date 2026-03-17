@@ -1,0 +1,22 @@
+{
+  "startedAt": "2026-03-17T10:12:38.161Z",
+  "finishedAt": "2026-03-17T10:14:04.257Z",
+  "totalCases": 4,
+  "totalRuns": 4,
+  "avgLatencyMs": 21524,
+  "p95LatencyMs": 39846,
+  "avgToolCalls": 1,
+  "executionRate": 0,
+  "resultAccuracy": 0,
+  "consistencyScore": 100,
+  "refusalRate": 0,
+  "falsePositiveRate": 50,
+  "timeoutRefusalRate": 0,
+  "thresholds": {
+    "executionRateMin": 85,
+    "resultAccuracyMin": 80,
+    "consistencyScoreMin": 75,
+    "refusalRateMin": 90
+  },
+  "pass": false
+}

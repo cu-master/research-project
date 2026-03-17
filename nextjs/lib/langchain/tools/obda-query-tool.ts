@@ -22,6 +22,26 @@ const obdaQuerySchema = z.object({
     ),
 });
 
+const MUTATION_INTENT_PATTERNS: RegExp[] = [
+  /\bdelete\b/i,
+  /\bdrop\b/i,
+  /\binsert\b/i,
+  /\bupdate\b/i,
+  /\btruncate\b/i,
+  /\balter\b/i,
+  /\bcreate\s+table\b/i,
+  /\bdrop\s+table\b/i,
+  /\balter\s+table\b/i,
+  /\bdelete\s+all\b/i,
+  /\bremove\s+all\b/i,
+  /\badd\s+a\s+record\b/i,
+  /\bupdate\s+record\b/i,
+];
+
+function detectMutationIntent(query: string): boolean {
+  return MUTATION_INTENT_PATTERNS.some((pattern) => pattern.test(query));
+}
+
 /**
  * OBDA Orchestrator tool — thin 3-step pipeline:
  *
@@ -37,6 +57,13 @@ export const obdaQueryWithOntopTool = tool(
     query: userQuery,
     includeDebugContext,
   }: z.infer<typeof obdaQuerySchema>) => {
+    if (detectMutationIntent(userQuery)) {
+      return (
+        "SQL Rejected (NFR-02): Only read-only SELECT queries are permitted. " +
+        "This system does not support data modification operations."
+      );
+    }
+
     // -----------------------------------------------------------------------
     // Load project context
     // -----------------------------------------------------------------------

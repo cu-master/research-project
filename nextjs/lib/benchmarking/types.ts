@@ -1,18 +1,26 @@
-export type BenchmarkCaseCategory = "positive";
+export type BenchmarkCaseCategory = "positive" | "negative";
 
 export type BenchmarkCaseSubtype =
   | "simple_retrieval"
   | "complex_join"
-  | "aggregation";
+  | "aggregation"
+  | "complex_aggregation"
+  | "filtering"
+  | "out_of_scope"
+  | "mutation_attempt"
+  | "injection_attempt"
+  | "ambiguous_query"
+  | "nonexistent_entity";
 
-export type BenchmarkExpectedBehavior = "sql";
+export type BenchmarkExpectedBehavior = "sql" | "refusal";
 
 export interface BenchmarkExpectation {
   behavior: BenchmarkExpectedBehavior;
-  sqlMustContain?: string[];
+  sqlMustContain?: string[]; // legacy fallback checks
   sqlMustNotContain?: string[];
   responseMustContain?: string[];
   expectedResultSignature?: string;
+  maxToolCalls?: number;
 }
 
 export interface BenchmarkCase {
@@ -32,6 +40,7 @@ export interface BenchmarkConfig {
     executionRateMin: number;
     resultAccuracyMin: number;
     consistencyScoreMin: number;
+    refusalRateMin: number;
   };
 }
 
@@ -44,8 +53,11 @@ export interface BenchmarkRunArtifact {
   responseText: string;
   sqlText: string;
   resultSignature: string | null;
-  executionSuccess: boolean;
+  responseSuccess: boolean;
   accuracyPass: boolean;
+  toolCallCount: number;
+  toolNames: string[];
+  timeoutLike: boolean;
   error?: string;
 }
 
@@ -55,9 +67,11 @@ export interface CaseMetrics {
   subtype: BenchmarkCaseSubtype;
   runs: number;
   avgLatencyMs: number;
-  executionRate: number;
+  responseSuccessRate: number;
+  refusalRate: number | null;
   resultAccuracyRate: number | null;
-  consistencyScore: number;
+  consistencyScore: number | null;
+  avgToolCalls: number;
 }
 
 export interface BenchmarkSummary {
@@ -67,9 +81,14 @@ export interface BenchmarkSummary {
   totalRuns: number;
   avgLatencyMs: number;
   p95LatencyMs: number;
-  executionRate: number;
+  avgToolCalls: number;
+  responseSuccessRate: number;
   resultAccuracy: number;
-  consistencyScore: number;
+  consistencyScore: number | null;
+  refusalRate: number;
+  falsePositiveRate: number;
+  timeoutRefusalRate: number;
+  toolFrequency: Record<string, number>;
   thresholds: BenchmarkConfig["threshold"];
   pass: boolean;
 }

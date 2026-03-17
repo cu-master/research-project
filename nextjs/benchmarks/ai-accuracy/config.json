@@ -5,6 +5,7 @@
   "threshold": {
     "executionRateMin": 85,
     "resultAccuracyMin": 80,
-    "consistencyScoreMin": 75
+    "consistencyScoreMin": 75,
+    "refusalRateMin": 90
   }
 }

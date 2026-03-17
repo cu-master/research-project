@@ -40,6 +40,26 @@ const TOOL_LABELS: Record<string, string> = {
   database_get_sample_queries: "Preparing sample queries",
 };
 
+const MUTATION_INTENT_PATTERNS: RegExp[] = [
+  /\bdelete\b/i,
+  /\bdrop\b/i,
+  /\binsert\b/i,
+  /\bupdate\b/i,
+  /\btruncate\b/i,
+  /\balter\b/i,
+  /\bcreate\s+table\b/i,
+  /\bdrop\s+table\b/i,
+  /\balter\s+table\b/i,
+  /\bdelete\s+all\b/i,
+  /\bremove\s+all\b/i,
+  /\badd\s+a\s+record\b/i,
+  /\bupdate\s+record\b/i,
+];
+
+function isMutationIntent(message: string): boolean {
+  return MUTATION_INTENT_PATTERNS.some((pattern) => pattern.test(message));
+}
+
 function toToolLabel(toolName: string): string {
   if (TOOL_LABELS[toolName]) return TOOL_LABELS[toolName];
   const prettyName = toolName.replace(/_/g, " ").replace(/\s+/g, " ").trim();
@@ -50,6 +70,39 @@ function toToolLabel(toolName: string): string {
 function truncateForProgress(text: string, max = 400): string {
   if (text.length <= max) return text;
   return `${text.slice(0, max)}...`;
+}
+
+function buildKnownTablesLines(schemaValue: unknown): string[] {
+  if (!schemaValue || typeof schemaValue !== "object" || Array.isArray(schemaValue)) {
+    return [];
+  }
+
+  const tables = (schemaValue as { tables?: unknown }).tables;
+  if (!Array.isArray(tables)) return [];
+
+  return tables
+    .map((table) => {
+      if (!table || typeof table !== "object" || Array.isArray(table)) return null;
+      const tableName = (table as { name?: unknown }).name;
+      if (typeof tableName !== "string" || tableName.trim().length === 0) return null;
+
+      const columnsRaw = (table as { columns?: unknown }).columns;
+      const columns = Array.isArray(columnsRaw)
+        ? columnsRaw
+            .map((column) => {
+              if (!column || typeof column !== "object" || Array.isArray(column)) return null;
+              const columnName = (column as { name?: unknown }).name;
+              return typeof columnName === "string" && columnName.trim().length > 0
+                ? columnName.trim()
+                : null;
+            })
+            .filter((name): name is string => Boolean(name))
+        : [];
+
+      const columnList = columns.length > 0 ? columns.join(", ") : "no columns";
+      return `- ${tableName} (${columnList})`;
+    })
+    .filter((line): line is string => Boolean(line));
 }
 
 export async function POST(request: Request) {
@@ -81,6 +134,62 @@ export async function POST(request: Request) {
 
     console.log("Processing message:", safeMessage);
 
+    // NFR-02 fast-path: block write intent before invoking model/tools.
+    if (isMutationIntent(safeMessage)) {
+      const startTime = Date.now();
+      const refusalResponse =
+        "I'm sorry, but I cannot perform that operation. Deleting, inserting, or modifying data is not permitted — this system only allows read-only SELECT queries for data safety.\n\n" +
+        "I can, however, help you find information with a read-only query. If you'd like, ask for a report, list, or summary from the database.";
+      const sessionIdValue =
+        typeof sessionId === "string" && sessionId.trim() !== ""
+          ? sessionId
+          : undefined;
+
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const encoder = new TextEncoder();
+
+          void (async () => {
+            const latency = (Date.now() - startTime) / 1000;
+
+            // Save both messages to DB so loadMessages() after done doesn't wipe the UI.
+            if (sessionIdValue) {
+              try {
+                await saveMessage(sessionIdValue, "user", safeMessage);
+                await saveMessage(
+                  sessionIdValue,
+                  "assistant",
+                  refusalResponse,
+                  undefined,
+                  [],
+                  latency
+                );
+              } catch (dbErr) {
+                console.warn("[DB] Fast-path: failed to save messages:", dbErr);
+              }
+            }
+
+            const doneEvent: ChatStreamEvent = {
+              type: "done",
+              response: refusalResponse,
+              toolsUsed: [],
+              latency,
+            };
+            controller.enqueue(encoder.encode(`${JSON.stringify(doneEvent)}\n`));
+            controller.close();
+          })();
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "application/x-ndjson; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
     // Verify session exists if sessionId is provided, and load its project_id
     let sessionProjectId: string | null = null;
     if (sessionId && typeof sessionId === "string" && sessionId.trim() !== "") {
@@ -110,11 +219,13 @@ export async function POST(request: Request) {
 
           // Only include capability flags — actual content is accessed via tools
           const capabilities: string[] = [];
+          let knownTablesLines: string[] = [];
           if (project.content && project.content.trim()) {
             capabilities.push("URL Content (use 'answer_query' or 'summarize_content' tools to access)");
           }
           if (project.db_schema && Object.keys(project.db_schema).length > 0) {
             capabilities.push("Database Schema (use database tools to query)");
+            knownTablesLines = buildKnownTablesLines(project.db_schema);
           }
           if (project.r2rml_mapping && project.r2rml_mapping.trim()) {
             capabilities.push("R2RML Mapping (use 'obda_query_with_ontop' for queries or 'explain_mapping' to understand it)");
@@ -124,6 +235,9 @@ export async function POST(request: Request) {
             contextParts.push(`\nAvailable project data:\n- ${capabilities.join("\n- ")}`);
           } else {
             contextParts.push(`\nThis project has no data configured yet.`);
+          }
+          if (knownTablesLines.length > 0) {
+            contextParts.push(`\nKnown tables:\n${knownTablesLines.join("\n")}`);
           }
 
           projectContext = contextParts.join("\n");
