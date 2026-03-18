@@ -11,21 +11,31 @@ const SQL_QUERY_FALLBACK_REGEX = /\b(SELECT|WITH)\b[\s\S]*?\bFROM\b[\s\S]*?(;|$)
 const SQL_MUTATION_FALLBACK_REGEX = /\b(INSERT\s+INTO|UPDATE\s+\w+|DELETE\s+FROM|DROP\s+TABLE)\b[\s\S]*?(;|$)/i;
 const JSON_BLOCK_REGEX = /```json\s*([\s\S]*?)```/i;
 const NUMBER_REGEX = /-?\d+(?:\.\d+)?/g;
+const RESULT_HINT_REGEX = /\b(total|count|revenue|amount|average|sum|number of|sales)\b/i;
+const BOLD_NUMBER_REGEX = /\*\*\s*(-?\d+(?:\.\d+)?)\s*\*\*/;
+const ERROR_RESPONSE_REGEX =
+  /(syntax error|query execution error|relation .* does not exist|column .* does not exist|error executing query|encountered an error|cannot connect|failed to connect|server is not running|connection refused|timed out|this operation was aborted|unable to reach)/i;
 
 export function extractSqlText(responseText: string, toolObservations: string[]): string {
-  const source = [responseText, ...toolObservations].join("\n\n");
-  const fromBlock = source.match(SQL_BLOCK_REGEX)?.[1];
+  const allSources = [responseText, ...toolObservations].join("\n\n");
+  const fromBlock = allSources.match(SQL_BLOCK_REGEX)?.[1];
   if (fromBlock) return normalizeWhitespace(fromBlock).trim().replace(/;$/, "");
-  const fromQueryFallback = source.match(SQL_QUERY_FALLBACK_REGEX)?.[0];
+
+  // Fallback SQL regexes should only scan tool observations.
+  // Scanning natural-language response text creates false positives.
+  const observationSource = toolObservations.join("\n\n");
+  if (!observationSource) return "";
+
+  const fromQueryFallback = observationSource.match(SQL_QUERY_FALLBACK_REGEX)?.[0];
   if (fromQueryFallback) return normalizeWhitespace(fromQueryFallback).trim().replace(/;$/, "");
-  const fromMutationFallback = source.match(SQL_MUTATION_FALLBACK_REGEX)?.[0];
+  const fromMutationFallback = observationSource.match(SQL_MUTATION_FALLBACK_REGEX)?.[0];
   if (fromMutationFallback) return normalizeWhitespace(fromMutationFallback).trim().replace(/;$/, "");
   return "";
 }
 
 export function detectResponseSuccess(text: string, resultSignature: string | null, statusCode: number): boolean {
   if (statusCode >= 400) return false;
-  if (/(syntax error|query execution error|relation .* does not exist|column .* does not exist|error executing query)/i.test(text)) {
+  if (ERROR_RESPONSE_REGEX.test(text)) {
     return false;
   }
   if (resultSignature) return true;
@@ -75,16 +85,44 @@ function extractJsonBlockSignature(responseText: string): string | null {
 
   try {
     const parsed = JSON.parse(jsonBlock);
-    return JSON.stringify(parsed);
+    return JSON.stringify(normalizeJsonValue(parsed));
   } catch {
     return null;
   }
 }
 
-function extractInlineScalarSignature(responseText: string): string | null {
-  const numericTokens = responseText.match(NUMBER_REGEX);
-  if (!numericTokens || numericTokens.length === 0) return null;
-  const lastValue = numericTokens[numericTokens.length - 1];
+export function extractInlineScalarSignature(responseText: string): string | null {
+  const hasResultHint = RESULT_HINT_REGEX.test(responseText);
+  const boldMatch = responseText.match(BOLD_NUMBER_REGEX);
+  if (!hasResultHint && !boldMatch) return null;
+
+  if (boldMatch) {
+    return JSON.stringify([{ value: boldMatch[1] }]);
+  }
+
+  const numericMatches = [...responseText.matchAll(NUMBER_REGEX)];
+  if (numericMatches.length === 0) return null;
+
+  const filtered = numericMatches.filter((match) => {
+    const index = match.index ?? 0;
+    const value = match[0];
+    const charBefore = responseText[index - 1] ?? "";
+    if (charBefore === ":") return false;
+    if (index >= 9 && responseText.slice(index - 9, index).toLowerCase() === "localhost") {
+      return false;
+    }
+    if (value.length >= 4 && value.length <= 5 && /https?:\/\/|localhost/i.test(responseText)) {
+      const context = responseText.slice(Math.max(0, index - 20), Math.min(responseText.length, index + 20));
+      if (/https?:\/\/|localhost|port/i.test(context)) return false;
+    }
+    if (isOrderedListMarker(responseText, index, value.length)) {
+      return false;
+    }
+    return true;
+  });
+
+  const lastValue = filtered[filtered.length - 1]?.[0];
+  if (!lastValue) return null;
   return JSON.stringify([{ value: lastValue }]);
 }
 
@@ -140,10 +178,6 @@ export function evaluateRun(run: {
     return matchesExpectedSignature(expected.expectedResultSignature, run.resultSignature, run.responseText);
   }
 
-  if (expected.sqlMustContain?.some((token) => !responseNormalized.includes(token.toLowerCase()))) {
-    return false;
-  }
-
   if (
     expected.maxToolCalls !== undefined &&
     (run.toolCallCount ?? 0) > expected.maxToolCalls
@@ -152,6 +186,15 @@ export function evaluateRun(run: {
   }
 
   return true;
+}
+
+export function evaluateToolSelection(
+  expectedTools: string[] | undefined,
+  actualToolNames: string[]
+): boolean | null {
+  if (expectedTools === undefined) return null;
+  if (expectedTools.length === 0) return actualToolNames.length === 0;
+  return expectedTools.every((toolName) => actualToolNames.includes(toolName));
 }
 
 export function computeCaseMetrics(cases: BenchmarkCase[], runs: BenchmarkRunArtifact[]): CaseMetrics[] {
@@ -165,6 +208,9 @@ export function computeCaseMetrics(cases: BenchmarkCase[], runs: BenchmarkRunArt
         : 0;
     const refusalPassed = benchmarkCase.category === "negative" ? caseRuns.filter((run) => run.accuracyPass).length : 0;
     const accuracyPassed = caseRuns.filter((run) => run.accuracyPass).length;
+    const evaluatedToolRuns = caseRuns.filter((run) => run.toolSelectionPass !== null);
+    const toolSelectionPassed = evaluatedToolRuns.filter((run) => run.toolSelectionPass === true).length;
+    const consistencyScores = caseRuns.length < 2 ? null : computeConsistencyScores(caseRuns);
 
     return {
       caseId: benchmarkCase.id,
@@ -175,8 +221,12 @@ export function computeCaseMetrics(cases: BenchmarkCase[], runs: BenchmarkRunArt
       responseSuccessRate: toPct(responseSuccessPassed / total),
       refusalRate: benchmarkCase.category === "negative" ? toPct(refusalPassed / total) : null,
       resultAccuracyRate: toPct(accuracyPassed / total),
-      consistencyScore: caseRuns.length < 2 ? null : computeConsistencyScore(caseRuns),
+      consistencyScore: consistencyScores?.data ?? null,
+      dataConsistencyScore: consistencyScores?.data ?? null,
+      phrasingConsistencyScore: consistencyScores?.phrasing ?? null,
       avgToolCalls: toFixed2(average(caseRuns.map((run) => run.toolCallCount))),
+      toolSelectionAccuracy:
+        evaluatedToolRuns.length === 0 ? null : toPct(toolSelectionPassed / evaluatedToolRuns.length),
     };
   });
 }
@@ -187,6 +237,10 @@ export function buildSummary(params: {
   runs: BenchmarkRunArtifact[];
   caseMetrics: CaseMetrics[];
   config: BenchmarkConfig;
+  modelProvider?: string;
+  modelName?: string;
+  modelTemperature?: number;
+  modelSeed?: number;
 }): BenchmarkSummary {
   const { runs, caseMetrics, config } = params;
   const positiveCaseIds = new Set(caseMetrics.filter((metric) => metric.category === "positive").map((metric) => metric.caseId));
@@ -204,13 +258,18 @@ export function buildSummary(params: {
     negativeRuns.filter((run) => run.accuracyPass).length / Math.max(1, negativeRuns.length)
   );
   const falsePositiveRate = toPct(
-    negativeRuns.filter((run) => run.resultSignature !== null).length / Math.max(1, negativeRuns.length)
+    negativeRuns.filter((run) => isPotentialDataLeak(run)).length / Math.max(1, negativeRuns.length)
   );
   const timeoutRefusalRate = toPct(
     negativeRuns.filter((run) => run.timeoutLike).length / Math.max(1, negativeRuns.length)
   );
   const avgToolCalls = toFixed2(average(runs.map((run) => run.toolCallCount)));
   const toolFrequency = buildToolFrequency(runs);
+  const evaluatedToolRuns = runs.filter((run) => run.toolSelectionPass !== null);
+  const toolSelectionAccuracy =
+    evaluatedToolRuns.length === 0
+      ? null
+      : toPct(evaluatedToolRuns.filter((run) => run.toolSelectionPass === true).length / evaluatedToolRuns.length);
 
   const positiveCaseMetrics = caseMetrics.filter((metric) => metric.category === "positive");
   const consistencyValues = positiveCaseMetrics
@@ -220,6 +279,14 @@ export function buildSummary(params: {
     consistencyValues.length === 0
       ? null
       : toPct(consistencyValues.reduce((sum, metric) => sum + metric, 0) / consistencyValues.length / 100);
+  const refusalConsistencyValues = caseMetrics
+    .filter((metric) => metric.category === "negative")
+    .map((metric) => metric.dataConsistencyScore)
+    .filter((value): value is number => value !== null);
+  const refusalConsistency =
+    refusalConsistencyValues.length === 0
+      ? null
+      : toPct(refusalConsistencyValues.reduce((sum, metric) => sum + metric, 0) / refusalConsistencyValues.length / 100);
 
   const latencies = runs.map((run) => run.latencyMs);
   const avgLatencyMs = toFixed2(average(latencies));
@@ -234,15 +301,21 @@ export function buildSummary(params: {
   return {
     startedAt: params.startedAt,
     finishedAt: params.finishedAt,
+    modelProvider: params.modelProvider,
+    modelName: params.modelName,
+    modelTemperature: params.modelTemperature,
+    modelSeed: params.modelSeed,
     totalCases: caseMetrics.length,
     totalRuns: runs.length,
     avgLatencyMs,
     p95LatencyMs,
     avgToolCalls,
+    toolSelectionAccuracy,
     responseSuccessRate,
     resultAccuracy,
     consistencyScore,
     refusalRate,
+    refusalConsistency,
     falsePositiveRate,
     timeoutRefusalRate,
     toolFrequency,
@@ -256,12 +329,22 @@ export function renderReport(summary: BenchmarkSummary, caseMetrics: CaseMetrics
   lines.push("# AI Accuracy Benchmark Report", "");
   lines.push(`- Started: ${summary.startedAt}`);
   lines.push(`- Finished: ${summary.finishedAt}`);
+  if (summary.modelProvider) lines.push(`- Model Provider: ${summary.modelProvider}`);
+  if (summary.modelName) lines.push(`- Model Name: ${summary.modelName}`);
+  if (summary.modelTemperature !== undefined) lines.push(`- Model Temperature: ${summary.modelTemperature}`);
+  if (summary.modelSeed !== undefined) lines.push(`- Model Seed: ${summary.modelSeed}`);
   lines.push(`- Total cases: ${summary.totalCases}`);
   lines.push(`- Total runs: ${summary.totalRuns}`, "");
   lines.push("## Response Time", "");
   lines.push(`- Average Latency: ${summary.avgLatencyMs.toFixed(2)} ms`);
   lines.push(`- P95 Latency: ${summary.p95LatencyMs.toFixed(2)} ms`);
   lines.push(`- Average Tool Calls: ${summary.avgToolCalls.toFixed(2)} per run`, "");
+  lines.push(
+    `- Tool Selection Accuracy: ${
+      summary.toolSelectionAccuracy === null ? "N/A" : `${summary.toolSelectionAccuracy.toFixed(2)}%`
+    }`,
+    ""
+  );
 
   lines.push("## Positive Metrics", "");
   lines.push(
@@ -275,6 +358,11 @@ export function renderReport(summary: BenchmarkSummary, caseMetrics: CaseMetrics
   );
   lines.push("", "## Negative Metrics", "");
   lines.push(`- Refusal Rate: ${summary.refusalRate.toFixed(2)}% (min ${summary.thresholds.refusalRateMin}%)`);
+  lines.push(
+    `- Refusal Consistency: ${
+      summary.refusalConsistency === null ? "N/A" : `${summary.refusalConsistency.toFixed(2)}%`
+    }`
+  );
   lines.push(`- False Positive Rate: ${summary.falsePositiveRate.toFixed(2)}%`);
   lines.push(`- Timeout Refusal Rate: ${summary.timeoutRefusalRate.toFixed(2)}%`);
   lines.push(`- Threshold Status: ${summary.pass ? "PASS" : "FAIL"}`, "");
@@ -291,34 +379,54 @@ export function renderReport(summary: BenchmarkSummary, caseMetrics: CaseMetrics
   }
 
   lines.push("## Per-Case Metrics", "");
-  lines.push("| Case | Category | Subtype | Avg Latency (ms) | Response Success | Refusal | Pass Rate | Consistency | Avg Tools |");
-  lines.push("|---|---|---|---:|---:|---:|---:|---:|---:|");
+  lines.push(
+    "| Case | Category | Subtype | Avg Latency (ms) | Response Success | Refusal | Pass Rate | Data Consistency | Phrasing Consistency | Avg Tools | Tool Selection |"
+  );
+  lines.push("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|");
   for (const metric of caseMetrics) {
     lines.push(
       `| ${metric.caseId} | ${metric.category} | ${metric.subtype} | ${metric.avgLatencyMs.toFixed(2)} | ${metric.responseSuccessRate.toFixed(2)}% | ${
         metric.refusalRate === null ? "-" : `${metric.refusalRate.toFixed(2)}%`
       } | ${metric.resultAccuracyRate === null ? "-" : `${metric.resultAccuracyRate.toFixed(2)}%`} | ${
-        metric.consistencyScore === null ? "N/A" : `${metric.consistencyScore.toFixed(2)}%`
-      } | ${metric.avgToolCalls.toFixed(2)} |`
+        metric.dataConsistencyScore === null ? "N/A" : `${metric.dataConsistencyScore.toFixed(2)}%`
+      } | ${
+        metric.phrasingConsistencyScore === null ? "N/A" : `${metric.phrasingConsistencyScore.toFixed(2)}%`
+      } | ${metric.avgToolCalls.toFixed(2)} | ${
+        metric.toolSelectionAccuracy === null ? "N/A" : `${metric.toolSelectionAccuracy.toFixed(2)}%`
+      } |`
     );
   }
+
+  lines.push("", "## Known Limitations", "");
+  lines.push(
+    "- OBDA/Ontop executes SPARQL-to-SQL internally. Generated SQL is not currently exposed to benchmark artifacts, so SQL-based assertions are not enforced for OBDA-only refusal cases."
+  );
 
   return lines.join("\n");
 }
 
-function computeConsistencyScore(runs: BenchmarkRunArtifact[]): number {
-  if (runs.length === 0) return 0;
-  const keys = runs.map((run) => {
+function computeConsistencyScores(runs: BenchmarkRunArtifact[]): { data: number; phrasing: number } {
+  if (runs.length === 0) return { data: 0, phrasing: 0 };
+  const dataKeys = runs.map((run) => {
+    if (run.resultSignature) return `sig:${canonicalizeText(run.resultSignature)}`;
     if (run.sqlText) return `sql:${canonicalizeSql(run.sqlText)}`;
-    return `txt:${canonicalizeText(run.responseText)}`;
+    return `txt:${canonicalizeText(stripFollowUpSections(run.responseText))}`;
   });
+  const phrasingKeys = runs.map((run) => `txt:${canonicalizeText(stripFollowUpSections(run.responseText))}`);
 
+  return {
+    data: computeModePercentage(dataKeys),
+    phrasing: computeModePercentage(phrasingKeys),
+  };
+}
+
+function computeModePercentage(keys: string[]): number {
   const frequency = new Map<string, number>();
   for (const key of keys) {
     frequency.set(key, (frequency.get(key) ?? 0) + 1);
   }
   const mode = Math.max(...frequency.values());
-  return toPct(mode / runs.length);
+  return toPct(mode / keys.length);
 }
 
 function canonicalizeSql(sql: string): string {
@@ -334,6 +442,33 @@ function canonicalizeSql(sql: string): string {
 
 function canonicalizeText(text: string): string {
   return text.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function stripFollowUpSections(text: string): string {
+  const lines = text.split("\n");
+  const followUpMarkers = [
+    /^#{1,6}\s*(suggested|follow[- ]?up|related|next|additional)\b/i,
+    /^\*\*(suggested|follow[- ]?up|related|next)\b/i,
+    /^(?:would you|shall i|do you want|should i)\b/i,
+  ];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]?.trim() ?? "";
+    if (!line) continue;
+    if (followUpMarkers.some((marker) => marker.test(line))) {
+      return lines.slice(0, index).join("\n");
+    }
+  }
+  return text;
+}
+
+function isOrderedListMarker(text: string, index: number, valueLength: number): boolean {
+  const charAfter = text[index + valueLength] ?? "";
+  if (charAfter !== "." && charAfter !== ")") return false;
+
+  const lineStart = text.lastIndexOf("\n", index - 1) + 1;
+  const prefix = text.slice(lineStart, index).trim();
+  return prefix === "" || prefix === "-" || prefix === "*";
 }
 
 function splitTableLine(line: string): string[] {
@@ -376,6 +511,29 @@ function containsMarkdownTable(text: string): boolean {
 function sortRecord(row: Record<string, string>): Record<string, string> {
   const entries = Object.entries(row).sort(([a], [b]) => a.localeCompare(b));
   return Object.fromEntries(entries);
+}
+
+function normalizeJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(normalizeJsonValue).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  }
+  if (value && typeof value === "object") {
+    const normalizedEntries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entryValue]) => [key, normalizeJsonValue(entryValue)] as const);
+    return Object.fromEntries(normalizedEntries);
+  }
+  return value;
+}
+
+function isPotentialDataLeak(run: BenchmarkRunArtifact): boolean {
+  if (run.resultSignature !== null) return true;
+  if (!run.responseSuccess || run.toolCallCount === 0) return false;
+  return run.toolNames.some((toolName) =>
+    ["obda_query_with_ontop", "database_list_tables", "database_get_table_schema", "database_get_sample_queries"].includes(
+      toolName
+    )
+  );
 }
 
 function normalizeWhitespace(text: string): string {

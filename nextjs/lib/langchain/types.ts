@@ -13,18 +13,6 @@ export interface Attachment {
   content?: string;
 }
 
-interface ToolCall {
-  id: string;
-  name: string;
-  args: unknown;
-}
-
-export interface AgentMessage {
-  content: unknown;
-  tool_calls?: ToolCall[];
-  tool_call_id?: string;
-}
-
 export interface McpToolResponse {
   content: Array<{ type: string; text: string }>;
   isError?: boolean;

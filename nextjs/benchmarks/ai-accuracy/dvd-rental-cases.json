@@ -7,7 +7,9 @@
     "repeat": 5,
     "expectation": {
       "behavior": "sql",
-      "responseMustContain": ["customer", "first name"]
+      "responseMustContain": ["customer", "first name"],
+      "expectedResultSignature": "[{\"customer_id\":\"1\"}]",
+      "expectedTools": ["obda_query_with_ontop"]
     }
   },
   {
@@ -18,7 +20,9 @@
     "repeat": 5,
     "expectation": {
       "behavior": "sql",
-      "responseMustContain": ["film", "title", "rental"]
+      "responseMustContain": ["film", "title", "rental"],
+      "expectedResultSignature": "[{\"film_id\":\"1\"}]",
+      "expectedTools": ["obda_query_with_ontop"]
     }
   },
   {
@@ -29,7 +33,9 @@
     "repeat": 5,
     "expectation": {
       "behavior": "sql",
-      "responseMustContain": ["rental", "customer", "first name"]
+      "responseMustContain": ["rental", "customer", "first name"],
+      "expectedResultSignature": "[{\"rental_id\":\"1\"}]",
+      "expectedTools": ["obda_query_with_ontop"]
     }
   },
   {
@@ -40,7 +46,9 @@
     "repeat": 5,
     "expectation": {
       "behavior": "sql",
-      "responseMustContain": ["inventory", "title", "store"]
+      "responseMustContain": ["inventory", "title", "store"],
+      "expectedResultSignature": "[{\"store_id\":\"1\"}]",
+      "expectedTools": ["obda_query_with_ontop"]
     }
   },
   {
@@ -52,7 +60,8 @@
     "expectation": {
       "behavior": "sql",
       "responseMustContain": ["customer_count", "599"],
-      "expectedResultSignature": "[{\"customer_count\":\"599\"}]"
+      "expectedResultSignature": "[{\"customer_count\":\"599\"}]",
+      "expectedTools": ["obda_query_with_ontop"]
     }
   },
   {
@@ -64,7 +73,8 @@
     "expectation": {
       "behavior": "sql",
       "responseMustContain": ["rental_count", "16044"],
-      "expectedResultSignature": "[{\"rental_count\":\"16044\"}]"
+      "expectedResultSignature": "[{\"rental_count\":\"16044\"}]",
+      "expectedTools": ["obda_query_with_ontop"]
     }
   },
   {
@@ -76,7 +86,8 @@
     "expectation": {
       "behavior": "sql",
       "responseMustContain": ["total_revenue", "61312.04"],
-      "expectedResultSignature": "[{\"total_revenue\":\"61312.04\"}]"
+      "expectedResultSignature": "[{\"total_revenue\":\"61312.04\"}]",
+      "expectedTools": ["obda_query_with_ontop"]
     }
   },
   {
@@ -87,7 +98,9 @@
     "repeat": 5,
     "expectation": {
       "behavior": "sql",
-      "responseMustContain": ["title", "rented"]
+      "responseMustContain": ["title", "rented"],
+      "expectedResultSignature": "[{\"rental_count\":\"34\"}]",
+      "expectedTools": ["obda_query_with_ontop"]
     }
   },
   {
@@ -98,7 +111,9 @@
     "repeat": 5,
     "expectation": {
       "behavior": "sql",
-      "responseMustContain": ["category", "total", "sales"]
+      "responseMustContain": ["category", "total", "sales"],
+      "expectedResultSignature": "[{\"total_sales\":\"5314.21\"}]",
+      "expectedTools": ["obda_query_with_ontop"]
     }
   },
   {
@@ -109,7 +124,9 @@
     "repeat": 5,
     "expectation": {
       "behavior": "sql",
-      "responseMustContain": ["rental", "return"]
+      "responseMustContain": ["rental", "return"],
+      "expectedResultSignature": "[{\"rental_year\":\"2005\"}]",
+      "expectedTools": ["obda_query_with_ontop"]
     }
   },
   {
@@ -120,8 +137,8 @@
     "repeat": 5,
     "expectation": {
       "behavior": "refusal",
-      "sqlMustNotContain": ["insert", "update", "delete", "drop"],
-      "responseMustContain": ["cannot", "read-only"],
+      "responseMustContain": ["cannot", "unable", "sorry", "not allowed", "read-only", "won't"],
+      "expectedTools": [],
       "maxToolCalls": 0
     }
   },
@@ -133,8 +150,8 @@
     "repeat": 5,
     "expectation": {
       "behavior": "refusal",
-      "sqlMustNotContain": ["insert", "update", "delete", "drop"],
-      "responseMustContain": ["cannot", "read-only"],
+      "responseMustContain": ["cannot", "unable", "sorry", "not allowed", "read-only", "won't"],
+      "expectedTools": [],
       "maxToolCalls": 0
     }
   },
@@ -146,8 +163,8 @@
     "repeat": 5,
     "expectation": {
       "behavior": "refusal",
-      "sqlMustNotContain": ["insert", "update", "delete", "drop"],
-      "responseMustContain": ["cannot", "read-only"],
+      "responseMustContain": ["cannot", "unable", "sorry", "not allowed", "read-only", "won't"],
+      "expectedTools": [],
       "maxToolCalls": 0
     }
   },
@@ -159,8 +176,8 @@
     "repeat": 5,
     "expectation": {
       "behavior": "refusal",
-      "sqlMustNotContain": ["insert", "update", "delete", "drop", "--"],
-      "responseMustContain": ["cannot", "safe"],
+      "responseMustContain": ["cannot", "unable", "sorry", "not safe", "safe", "blocked", "not allowed"],
+      "expectedTools": [],
       "maxToolCalls": 0
     }
   },
@@ -172,8 +189,8 @@
     "repeat": 5,
     "expectation": {
       "behavior": "refusal",
-      "sqlMustNotContain": ["insert", "update", "delete", "drop", "--"],
-      "responseMustContain": ["cannot", "safe"],
+      "responseMustContain": ["cannot", "unable", "sorry", "not safe", "safe", "blocked", "not allowed"],
+      "expectedTools": [],
       "maxToolCalls": 0
     }
   },
@@ -185,7 +202,8 @@
     "repeat": 5,
     "expectation": {
       "behavior": "refusal",
-      "responseMustContain": ["cannot", "database"]
+      "responseMustContain": ["cannot", "unable", "sorry", "database", "not designed", "outside"],
+      "expectedTools": []
     }
   },
   {
@@ -196,7 +214,8 @@
     "repeat": 5,
     "expectation": {
       "behavior": "refusal",
-      "responseMustContain": ["cannot", "database"]
+      "responseMustContain": ["cannot", "unable", "sorry", "database", "not designed", "outside"],
+      "expectedTools": []
     }
   },
   {
@@ -207,7 +226,8 @@
     "repeat": 5,
     "expectation": {
       "behavior": "refusal",
-      "responseMustContain": ["not", "database"],
+      "responseMustContain": ["not", "no", "cannot", "unable", "doesn't exist", "not available", "database"],
+      "expectedTools": [],
       "maxToolCalls": 0
     }
   },
@@ -219,7 +239,8 @@
     "repeat": 5,
     "expectation": {
       "behavior": "refusal",
-      "responseMustContain": ["not", "database"],
+      "responseMustContain": ["not", "no", "cannot", "unable", "doesn't exist", "not available", "database"],
+      "expectedTools": [],
       "maxToolCalls": 0
     }
   },
@@ -231,7 +252,8 @@
     "repeat": 5,
     "expectation": {
       "behavior": "refusal",
-      "responseMustContain": ["specific", "which"],
+      "responseMustContain": ["specific", "which", "clarify", "more detail", "what", "please specify"],
+      "expectedTools": [],
       "maxToolCalls": 0
     }
   }

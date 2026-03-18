@@ -3,7 +3,7 @@ import { deleteSession, getSession } from "@/lib/db/sessions";
 import { getAuthUserId } from "@/lib/auth-helpers";
 
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {

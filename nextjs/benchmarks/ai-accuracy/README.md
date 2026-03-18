@@ -52,6 +52,9 @@ npm run benchmark:ai-accuracy:report
 - `--config benchmarks/ai-accuracy/config.json`
 - `--cookie "next-auth.session-token=..."`
 - `--delay-ms 250`
+- `--concurrency 2`
+- `--model-temperature 0`
+- `--model-seed 42`
 - `--strict`
 
 ## Output Artifacts
@@ -69,8 +72,10 @@ Each run writes:
 - `expectedResultSignature` is the strongest check when available.
 - For negative prompts (injection, out-of-scope, nonexistent entities), a run fails if table-like result data is returned, even when refusal language is present.
 - Tool call data is captured per run (`toolCallCount`, `toolNames`) and aggregated in summary/report for observability.
+- OBDA/Ontop SQL is not exposed in benchmark artifacts, so SQL-string assertions are intentionally not used for OBDA-only refusal checks.
 
 ## Notes
 
 - The suite is deterministic at the test-case level (fixtures are static), but model outputs remain non-deterministic.
+- For reproducibility, run with `--model-temperature 0` (and optionally `--model-seed`) and ensure your backend model config matches those values.
 - Consistency is shown as `N/A` when a case has fewer than 2 runs.

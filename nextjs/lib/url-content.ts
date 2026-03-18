@@ -6,7 +6,7 @@
 /**
  * Fetches text content from a URL with a 30-second timeout.
  */
-export async function fetchUrlContent(url: string): Promise<string> {
+async function fetchUrlContent(url: string): Promise<string> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
@@ -45,7 +45,7 @@ export async function fetchUrlContent(url: string): Promise<string> {
 /**
  * Extracts readable text content from HTML.
  */
-export function extractTextFromHtml(html: string): string {
+function extractTextFromHtml(html: string): string {
   let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
   text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
   text = text.replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, "");

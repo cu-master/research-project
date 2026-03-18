@@ -16,10 +16,10 @@ export type BenchmarkExpectedBehavior = "sql" | "refusal";
 
 export interface BenchmarkExpectation {
   behavior: BenchmarkExpectedBehavior;
-  sqlMustContain?: string[]; // legacy fallback checks
   sqlMustNotContain?: string[];
   responseMustContain?: string[];
   expectedResultSignature?: string;
+  expectedTools?: string[];
   maxToolCalls?: number;
 }
 
@@ -57,6 +57,7 @@ export interface BenchmarkRunArtifact {
   accuracyPass: boolean;
   toolCallCount: number;
   toolNames: string[];
+  toolSelectionPass: boolean | null;
   timeoutLike: boolean;
   error?: string;
 }
@@ -71,21 +72,30 @@ export interface CaseMetrics {
   refusalRate: number | null;
   resultAccuracyRate: number | null;
   consistencyScore: number | null;
+  dataConsistencyScore: number | null;
+  phrasingConsistencyScore: number | null;
   avgToolCalls: number;
+  toolSelectionAccuracy: number | null;
 }
 
 export interface BenchmarkSummary {
   startedAt: string;
   finishedAt: string;
+  modelProvider?: string;
+  modelName?: string;
+  modelTemperature?: number;
+  modelSeed?: number;
   totalCases: number;
   totalRuns: number;
   avgLatencyMs: number;
   p95LatencyMs: number;
   avgToolCalls: number;
+  toolSelectionAccuracy: number | null;
   responseSuccessRate: number;
   resultAccuracy: number;
   consistencyScore: number | null;
   refusalRate: number;
+  refusalConsistency: number | null;
   falsePositiveRate: number;
   timeoutRefusalRate: number;
   toolFrequency: Record<string, number>;

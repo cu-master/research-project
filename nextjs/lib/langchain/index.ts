@@ -2,7 +2,6 @@
 export type {
   ChatMessage,
   Attachment,
-  AgentMessage,
 } from "./types";
 
 // Utility functions

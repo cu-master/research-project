@@ -1,0 +1,28 @@
+{
+  "startedAt": "2026-03-18T09:20:47.987Z",
+  "finishedAt": "2026-03-18T09:22:16.068Z",
+  "modelProvider": "google",
+  "modelName": "gemini-3-flash-preview",
+  "totalCases": 4,
+  "totalRuns": 12,
+  "avgLatencyMs": 6839.83,
+  "p95LatencyMs": 19422,
+  "avgToolCalls": 0.5,
+  "toolSelectionAccuracy": 100,
+  "responseSuccessRate": 100,
+  "resultAccuracy": 66.67,
+  "consistencyScore": 33.33,
+  "refusalRate": 33.33,
+  "falsePositiveRate": 0,
+  "timeoutRefusalRate": 0,
+  "toolFrequency": {
+    "obda_query_with_ontop": 6
+  },
+  "thresholds": {
+    "executionRateMin": 85,
+    "resultAccuracyMin": 80,
+    "consistencyScoreMin": 75,
+    "refusalRateMin": 90
+  },
+  "pass": false
+}

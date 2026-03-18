@@ -2,7 +2,7 @@ import { createAgent } from "langchain";
 import { createModel } from "./model";
 import { allTools } from "./tools";
 
-export const SYSTEM_PROMPT = `You are an AI assistant with tools for data analysis, database queries, OBDA (Ontology-Based Data Access), and conceptual-to-physical mapping.
+const SYSTEM_PROMPT = `You are an AI assistant with tools for data analysis, database queries, OBDA (Ontology-Based Data Access), and conceptual-to-physical mapping.
 
 CORE PRINCIPLES:
 - You do NOT have direct access to project data. You MUST use tools to access any project content, schemas, or mappings.
