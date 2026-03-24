@@ -44,13 +44,6 @@ export interface QueryResult {
   error?: string;
 }
 
-export interface SchemaCache {
-  tables: TableInfo[];
-  columns: Map<string, TableColumn[]>;
-  foreignKeys: Map<string, ForeignKey[]>;
-  lastUpdated: number;
-}
-
 // ============================================================================
 // Database Configuration Types
 // ============================================================================

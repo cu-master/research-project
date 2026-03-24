@@ -45,17 +45,30 @@ Strict mode (non-zero exit when thresholds fail):
 npm run benchmark:ai-accuracy:report
 ```
 
+## Config (`config.json`)
+
+- **`promptSuffix`**: Text appended to every benchmark prompt (default in repo reduces follow-up churn). Set to `null` or `""` to measure the system without that suffix. If the key is omitted, the runner uses `BENCHMARK_PROMPT_SUFFIX` from the environment, then a built-in default.
+- **`requestRetries` / `retryDelayMs`**: Retries for 5xx responses and network failures (default `2` / `750`).
+- **`warmupEnabled`**: When `true` (default), one extra unmeasured `/api/chat` call runs after preflight to warm caches.
+
 ## Optional CLI Flags
 
 - `--base-url http://localhost:3000`
 - `--cases benchmarks/ai-accuracy/dvd-rental-cases.json`
+- `--case-id P02` (run one case by ID from the selected cases file)
 - `--config benchmarks/ai-accuracy/config.json`
 - `--cookie "next-auth.session-token=..."`
 - `--delay-ms 250`
-- `--concurrency 2`
+- `--concurrency 2` (prints a warning: parallel runs share one auth cookie)
 - `--model-temperature 0`
 - `--model-seed 42`
 - `--strict`
+
+Example:
+
+```bash
+npm run benchmark:ai-accuracy -- --case-id P02
+```
 
 ## Output Artifacts
 

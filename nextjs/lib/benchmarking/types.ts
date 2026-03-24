@@ -42,6 +42,14 @@ export interface BenchmarkConfig {
     consistencyScoreMin: number;
     refusalRateMin: number;
   };
+  /** Appended to every benchmark prompt. Set to null or "" in config to disable. */
+  promptSuffix?: string | null;
+  /** Retries for transient HTTP/network failures (not counting the first attempt). */
+  requestRetries?: number;
+  /** Delay between retry attempts in milliseconds. */
+  retryDelayMs?: number;
+  /** Run an extra unmeasured chat request after preflight to warm caches. */
+  warmupEnabled?: boolean;
 }
 
 export interface BenchmarkRunArtifact {

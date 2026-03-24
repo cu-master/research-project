@@ -7,5 +7,9 @@
     "resultAccuracyMin": 80,
     "consistencyScoreMin": 75,
     "refusalRateMin": 90
-  }
+  },
+  "promptSuffix": "\n\nDo not include suggested follow-up topics in your response.",
+  "requestRetries": 2,
+  "retryDelayMs": 750,
+  "warmupEnabled": true
 }

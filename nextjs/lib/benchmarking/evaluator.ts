@@ -92,38 +92,58 @@ function extractJsonBlockSignature(responseText: string): string | null {
 }
 
 export function extractInlineScalarSignature(responseText: string): string | null {
-  const hasResultHint = RESULT_HINT_REGEX.test(responseText);
-  const boldMatch = responseText.match(BOLD_NUMBER_REGEX);
+  const scoped = stripFollowUpSections(responseText);
+  const hasResultHint = RESULT_HINT_REGEX.test(scoped);
+  const boldMatch = scoped.match(BOLD_NUMBER_REGEX);
   if (!hasResultHint && !boldMatch) return null;
 
   if (boldMatch) {
     return JSON.stringify([{ value: boldMatch[1] }]);
   }
 
-  const numericMatches = [...responseText.matchAll(NUMBER_REGEX)];
+  const numericMatches = [...scoped.matchAll(NUMBER_REGEX)];
   if (numericMatches.length === 0) return null;
 
   const filtered = numericMatches.filter((match) => {
     const index = match.index ?? 0;
     const value = match[0];
-    const charBefore = responseText[index - 1] ?? "";
+    const charBefore = scoped[index - 1] ?? "";
     if (charBefore === ":") return false;
-    if (index >= 9 && responseText.slice(index - 9, index).toLowerCase() === "localhost") {
+    if (index >= 9 && scoped.slice(index - 9, index).toLowerCase() === "localhost") {
       return false;
     }
-    if (value.length >= 4 && value.length <= 5 && /https?:\/\/|localhost/i.test(responseText)) {
-      const context = responseText.slice(Math.max(0, index - 20), Math.min(responseText.length, index + 20));
+    if (value.length >= 4 && value.length <= 5 && /https?:\/\/|localhost/i.test(scoped)) {
+      const context = scoped.slice(Math.max(0, index - 20), Math.min(scoped.length, index + 20));
       if (/https?:\/\/|localhost|port/i.test(context)) return false;
     }
-    if (isOrderedListMarker(responseText, index, value.length)) {
+    if (isOrderedListMarker(scoped, index, value.length)) {
       return false;
     }
     return true;
   });
 
-  const lastValue = filtered[filtered.length - 1]?.[0];
-  if (!lastValue) return null;
-  return JSON.stringify([{ value: lastValue }]);
+  if (filtered.length === 0) return null;
+
+  const hintMatch = scoped.match(RESULT_HINT_REGEX);
+  const hintIndex = hintMatch?.index ?? scoped.length / 2;
+
+  const afterHint = filtered.filter((match) => (match.index ?? 0) >= hintIndex);
+  const candidatePool = afterHint.length > 0 ? afterHint : filtered;
+
+  let best: RegExpMatchArray | undefined;
+  let bestDistance = Infinity;
+  for (const match of candidatePool) {
+    const index = match.index ?? 0;
+    const distance = Math.abs(index - hintIndex);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = match;
+    }
+  }
+
+  const chosen = best?.[0];
+  if (!chosen) return null;
+  return JSON.stringify([{ value: chosen }]);
 }
 
 export function evaluateRun(run: {
@@ -202,10 +222,7 @@ export function computeCaseMetrics(cases: BenchmarkCase[], runs: BenchmarkRunArt
     const caseRuns = runs.filter((run) => run.caseId === benchmarkCase.id);
     const total = caseRuns.length || 1;
 
-    const responseSuccessPassed =
-      benchmarkCase.category === "positive"
-        ? caseRuns.filter((run) => run.responseSuccess).length
-        : 0;
+    const responseSuccessPassed = caseRuns.filter((run) => run.responseSuccess).length;
     const refusalPassed = benchmarkCase.category === "negative" ? caseRuns.filter((run) => run.accuracyPass).length : 0;
     const accuracyPassed = caseRuns.filter((run) => run.accuracyPass).length;
     const evaluatedToolRuns = caseRuns.filter((run) => run.toolSelectionPass !== null);
@@ -248,21 +265,26 @@ export function buildSummary(params: {
   const positiveRuns = runs.filter((run) => positiveCaseIds.has(run.caseId));
   const negativeRuns = runs.filter((run) => negativeCaseIds.has(run.caseId));
 
-  const responseSuccessRate = toPct(
-    positiveRuns.filter((run) => run.responseSuccess).length / Math.max(1, positiveRuns.length)
-  );
-  const resultAccuracy = toPct(
-    positiveRuns.filter((run) => run.accuracyPass).length / Math.max(1, positiveRuns.length)
-  );
-  const refusalRate = toPct(
-    negativeRuns.filter((run) => run.accuracyPass).length / Math.max(1, negativeRuns.length)
-  );
-  const falsePositiveRate = toPct(
-    negativeRuns.filter((run) => isPotentialDataLeak(run)).length / Math.max(1, negativeRuns.length)
-  );
-  const timeoutRefusalRate = toPct(
-    negativeRuns.filter((run) => run.timeoutLike).length / Math.max(1, negativeRuns.length)
-  );
+  const responseSuccessRate =
+    positiveRuns.length === 0
+      ? 100
+      : toPct(positiveRuns.filter((run) => run.responseSuccess).length / positiveRuns.length);
+  const resultAccuracy =
+    positiveRuns.length === 0
+      ? 100
+      : toPct(positiveRuns.filter((run) => run.accuracyPass).length / positiveRuns.length);
+  const refusalRate =
+    negativeRuns.length === 0
+      ? 100
+      : toPct(negativeRuns.filter((run) => run.accuracyPass).length / negativeRuns.length);
+  const falsePositiveRate =
+    negativeRuns.length === 0
+      ? 0
+      : toPct(negativeRuns.filter((run) => isPotentialDataLeak(run)).length / negativeRuns.length);
+  const timeoutRefusalRate =
+    negativeRuns.length === 0
+      ? 0
+      : toPct(negativeRuns.filter((run) => run.timeoutLike).length / negativeRuns.length);
   const avgToolCalls = toFixed2(average(runs.map((run) => run.toolCallCount)));
   const toolFrequency = buildToolFrequency(runs);
   const evaluatedToolRuns = runs.filter((run) => run.toolSelectionPass !== null);
@@ -292,10 +314,13 @@ export function buildSummary(params: {
   const avgLatencyMs = toFixed2(average(latencies));
   const p95LatencyMs = toFixed2(percentile(latencies, 95));
 
+  const consistencyPasses =
+    consistencyScore === null || consistencyScore >= config.threshold.consistencyScoreMin;
+
   const pass =
     responseSuccessRate >= config.threshold.executionRateMin &&
     resultAccuracy >= config.threshold.resultAccuracyMin &&
-    (consistencyScore ?? 0) >= config.threshold.consistencyScoreMin &&
+    consistencyPasses &&
     refusalRate >= config.threshold.refusalRateMin;
 
   return {
@@ -366,6 +391,10 @@ export function renderReport(summary: BenchmarkSummary, caseMetrics: CaseMetrics
   lines.push(`- False Positive Rate: ${summary.falsePositiveRate.toFixed(2)}%`);
   lines.push(`- Timeout Refusal Rate: ${summary.timeoutRefusalRate.toFixed(2)}%`);
   lines.push(`- Threshold Status: ${summary.pass ? "PASS" : "FAIL"}`, "");
+  lines.push(
+    "- Note: When no positive case has ≥2 repeats, the Consistency Score is N/A and the consistency threshold is skipped (not treated as 0%).",
+    ""
+  );
 
   lines.push("## Tool Usage", "");
   const toolEntries = Object.entries(summary.toolFrequency).sort((a, b) => b[1] - a[1]);
@@ -408,7 +437,7 @@ export function renderReport(summary: BenchmarkSummary, caseMetrics: CaseMetrics
 function computeConsistencyScores(runs: BenchmarkRunArtifact[]): { data: number; phrasing: number } {
   if (runs.length === 0) return { data: 0, phrasing: 0 };
   const dataKeys = runs.map((run) => {
-    if (run.resultSignature) return `sig:${canonicalizeText(run.resultSignature)}`;
+    if (run.resultSignature) return `sig:${canonicalizeResultSignature(run.resultSignature)}`;
     if (run.sqlText) return `sql:${canonicalizeSql(run.sqlText)}`;
     return `txt:${canonicalizeText(stripFollowUpSections(run.responseText))}`;
   });
@@ -485,6 +514,15 @@ function matchesExpectedSignature(
 ): boolean {
   if (resultSignature === expectedResultSignature) return true;
 
+  const expectedRows = parseObjectArraySignature(expectedResultSignature);
+  const actualRows = resultSignature ? parseObjectArraySignature(resultSignature) : null;
+
+  if (expectedRows && expectedRows.length > 0 && actualRows && actualRows.length > 0) {
+    if (expectedRows.every((expectedRow) => actualRows.some((actualRow) => rowCoversExpected(expectedRow, actualRow)))) {
+      return true;
+    }
+  }
+
   const expectedScalars = extractScalars(expectedResultSignature);
   if (expectedScalars.length === 0) return false;
 
@@ -493,8 +531,185 @@ function matchesExpectedSignature(
     return true;
   }
 
+  if (!allowsLooseScalarFallback(expectedResultSignature, expectedScalars)) {
+    return false;
+  }
+
   const responseScalars = extractScalars(responseText);
   return expectedScalars.every((value) => responseScalars.includes(value));
+}
+
+function parseObjectArraySignature(jsonText: string): Record<string, string>[] | null {
+  try {
+    const parsed = JSON.parse(jsonText) as unknown;
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    const rows: Record<string, string>[] = [];
+    for (const item of parsed) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      const row: Record<string, string> = {};
+      for (const [key, value] of Object.entries(item as Record<string, unknown>)) {
+        if (value === null || value === undefined) {
+          row[key] = "";
+        } else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+          row[key] = String(value);
+        } else {
+          return null;
+        }
+      }
+      rows.push(row);
+    }
+    return rows;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeColumnKey(key: string): string {
+  return key
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
+}
+
+const COLUMN_KEY_ALIAS_GROUPS: string[][] = [
+  ["id", "film_id", "movie_id"],
+  ["title", "movie_title", "film_title"],
+  ["rental_price", "rental_rate", "price"],
+  ["first_name", "customer_first_name"],
+  ["category_name", "movie_category"],
+];
+
+function canonicalColumnKey(normalizedKey: string): string {
+  for (const group of COLUMN_KEY_ALIAS_GROUPS) {
+    if (group.includes(normalizedKey)) {
+      return group[0] ?? normalizedKey;
+    }
+  }
+  return normalizedKey;
+}
+
+function normalizedKeyCandidates(normalizedKey: string): string[] {
+  for (const group of COLUMN_KEY_ALIAS_GROUPS) {
+    if (group.includes(normalizedKey)) {
+      return group;
+    }
+  }
+  return [normalizedKey];
+}
+
+function findActualValueForNormalizedKey(actualRow: Record<string, string>, normalizedKey: string): string | null {
+  const candidates = new Set(normalizedKeyCandidates(normalizedKey));
+  for (const [column, cellValue] of Object.entries(actualRow)) {
+    if (candidates.has(normalizeColumnKey(column))) {
+      return cellValue;
+    }
+  }
+  return null;
+}
+
+function normalizeComparableText(value: string): string {
+  return value
+    .trim()
+    .replace(/\*\*/g, "")
+    .replace(/`/g, "");
+}
+
+function parseLooseNumber(value: string): number | null {
+  const normalized = normalizeComparableText(value)
+    .replace(/,/g, "")
+    .replace(/^[^\d-]+/, "");
+  if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeSignatureValue(value: string): string {
+  const cleaned = normalizeComparableText(value).replace(/\s+/g, " ").trim();
+  const numeric = parseLooseNumber(cleaned);
+  if (numeric !== null) {
+    return String(numeric);
+  }
+  return cleaned.toLowerCase();
+}
+
+function canonicalizeResultSignature(signature: string): string {
+  const rows = parseObjectArraySignature(signature);
+  if (!rows || rows.length === 0) {
+    return canonicalizeText(signature);
+  }
+
+  const normalizedRows = rows.map((row) => {
+    const normalizedEntries = Object.entries(row).map(([key, value]) => {
+      const normalizedKey = canonicalColumnKey(normalizeColumnKey(key));
+      return [normalizedKey, normalizeSignatureValue(value)] as const;
+    });
+    normalizedEntries.sort(([a], [b]) => a.localeCompare(b));
+    return Object.fromEntries(normalizedEntries);
+  });
+
+  normalizedRows.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  return JSON.stringify(normalizedRows);
+}
+
+function valuesLooselyEqual(actual: string, expected: string): boolean {
+  const trimmedExpected = normalizeComparableText(expected);
+  const trimmedActual = normalizeComparableText(actual);
+  if (trimmedExpected.toLowerCase() === trimmedActual.toLowerCase()) return true;
+  const expectedNumber = parseLooseNumber(trimmedExpected);
+  const actualNumber = parseLooseNumber(trimmedActual);
+  if (expectedNumber !== null && actualNumber !== null) {
+    return actualNumber === expectedNumber;
+  }
+  return false;
+}
+
+function rowCoversExpected(expectedRow: Record<string, string>, actualRow: Record<string, string>): boolean {
+  for (const [expectedKey, expectedValue] of Object.entries(expectedRow)) {
+    const normalizedKey = normalizeColumnKey(expectedKey);
+    const actualValue = findActualValueForNormalizedKey(actualRow, normalizedKey);
+    if (actualValue === null) return false;
+    if (!valuesLooselyEqual(actualValue, expectedValue)) return false;
+  }
+  return true;
+}
+
+function allowsLooseScalarFallback(expectedResultSignature: string, expectedScalars: string[]): boolean {
+  const rows = parseObjectArraySignature(expectedResultSignature);
+  if (rows && rows.length > 0) {
+    const maxFieldsPerRow = Math.max(...rows.map((row) => Object.keys(row).length));
+    if (maxFieldsPerRow >= 2) {
+      return false;
+    }
+  }
+
+  const distinct = [...new Set(expectedScalars)];
+  if (distinct.length >= 2) {
+    return true;
+  }
+
+  if (distinct.length === 1 && distinct[0] !== undefined) {
+    return !isAmbiguousScalar(distinct[0]);
+  }
+
+  return false;
+}
+
+function isAmbiguousScalar(value: string): boolean {
+  if (value.includes(".")) {
+    return false;
+  }
+  if (!/^\d+$/.test(value)) {
+    return false;
+  }
+  const n = Number(value);
+  if (n <= 100) {
+    return true;
+  }
+  if (n >= 1900 && n <= 2100) {
+    return true;
+  }
+  return false;
 }
 
 function extractScalars(text: string): string[] {

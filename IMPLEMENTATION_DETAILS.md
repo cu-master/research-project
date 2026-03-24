@@ -253,7 +253,6 @@ interface ProcessedLLMOutput {
   finishReason?: string;            // Why generation stopped
   wasTruncated: boolean;            // Whether output was cut off
   safetyBlocked: boolean;           // Whether blocked by safety filters
-  tokenCount?: number;              // Estimated token usage
 }
 ```
 

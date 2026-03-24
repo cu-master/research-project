@@ -12,11 +12,13 @@ import {
   renderReport,
 } from "../lib/benchmarking/evaluator.ts";
 import type { BenchmarkCase, BenchmarkConfig, BenchmarkRunArtifact } from "../lib/benchmarking/types.ts";
+import { parseBenchmarkCases, parseBenchmarkConfig } from "../lib/benchmarking/schemas.ts";
 
 interface CliOptions {
   baseUrl?: string;
   casesPath?: string;
   configPath?: string;
+  caseId?: string;
   strict: boolean;
   cookie?: string;
   delayMs: number;
@@ -45,13 +47,14 @@ interface ChatStreamErrorEvent {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
-const BENCHMARK_PROMPT_SUFFIX = "\n\nDo not include suggested follow-up topics in your response.";
+const DEFAULT_PROMPT_SUFFIX = "\n\nDo not include suggested follow-up topics in your response.";
 
 async function main(): Promise<void> {
   await loadDotEnvFromProjectRoot();
   const options = parseCli(process.argv.slice(2));
   const config = await loadConfig(options.configPath);
-  const cases = await loadCases(options.casesPath);
+  const allCases = await loadCases(options.casesPath);
+  const cases = filterCasesById(allCases, options.caseId);
   const { modelProvider, modelName, modelTemperature, modelSeed } = resolveModelMetadata(options);
 
   const baseUrl = options.baseUrl ?? process.env.BENCHMARK_BASE_URL ?? config.baseUrl;
@@ -63,7 +66,39 @@ async function main(): Promise<void> {
     );
   }
 
-  await runPreflight({ baseUrl, endpointPath: config.endpointPath, cookie, timeoutMs: config.timeoutMs });
+  const promptSuffix = resolvePromptSuffix(config);
+  const requestRetries = config.requestRetries ?? 2;
+  const retryDelayMs = config.retryDelayMs ?? 750;
+
+  if (options.concurrency > 1) {
+    process.stderr.write(
+      "[benchmark] Warning: --concurrency > 1 sends parallel requests under the same auth cookie. If /api/chat or MCP uses per-user mutable state, results may be less reproducible.\n"
+    );
+  }
+
+  await runPreflight({
+    baseUrl,
+    endpointPath: config.endpointPath,
+    cookie,
+    timeoutMs: config.timeoutMs,
+    requestRetries,
+    retryDelayMs,
+  });
+
+  if (config.warmupEnabled !== false) {
+    await postChatWithRetry({
+      baseUrl,
+      endpointPath: config.endpointPath,
+      cookie,
+      timeoutMs: config.timeoutMs,
+      payload: {
+        message: "Benchmark warmup. Reply with a single word: ok." + (promptSuffix ? promptSuffix : ""),
+        history: [],
+      },
+      requestRetries,
+      retryDelayMs,
+    });
+  }
 
   const startedAt = new Date().toISOString();
   const caseRuns = await runWithConcurrency(cases, options.concurrency, async (benchmarkCase) =>
@@ -74,6 +109,9 @@ async function main(): Promise<void> {
       cookie,
       timeoutMs: config.timeoutMs,
       delayMs: options.delayMs,
+      promptSuffix,
+      requestRetries,
+      retryDelayMs,
     })
   );
   const runs = caseRuns.flat();
@@ -121,11 +159,19 @@ function parseCli(argv: string[]): CliOptions {
     if (arg === "--base-url") options.baseUrl = argv[index + 1];
     if (arg === "--cases") options.casesPath = argv[index + 1];
     if (arg === "--config") options.configPath = argv[index + 1];
+    if (arg === "--case-id") options.caseId = argv[index + 1];
     if (arg === "--cookie") options.cookie = argv[index + 1];
     if (arg === "--delay-ms") options.delayMs = Number(argv[index + 1] ?? "0");
     if (arg === "--concurrency") options.concurrency = Number(argv[index + 1] ?? "1");
     if (arg === "--model-temperature") options.modelTemperature = normalizeOptionNumber(argv[index + 1]);
     if (arg === "--model-seed") options.modelSeed = normalizeOptionNumber(argv[index + 1]);
+  }
+  if (options.caseId !== undefined) {
+    const normalized = options.caseId.trim();
+    if (!normalized) {
+      throw new Error("Invalid --case-id: provide a non-empty case ID (e.g. --case-id P02).");
+    }
+    options.caseId = normalized;
   }
   if (!Number.isFinite(options.concurrency) || options.concurrency < 1) {
     options.concurrency = 1;
@@ -212,12 +258,31 @@ async function loadDotEnvFromProjectRoot(): Promise<void> {
   }
 }
 
+function formatZodError(label: string, error: unknown): string {
+  if (error && typeof error === "object" && "issues" in error) {
+    const issues = (error as { issues: Array<{ path: (string | number)[]; message: string }> }).issues;
+    const detail = issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`).join("; ");
+    return `${label} validation failed: ${detail}`;
+  }
+  return `${label} validation failed`;
+}
+
 async function loadConfig(configPathArg?: string): Promise<BenchmarkConfig> {
   const configPath =
     configPathArg ??
     path.join(projectRoot, "benchmarks/ai-accuracy/config.json");
   const configRaw = await readFile(configPath, "utf8");
-  return JSON.parse(configRaw) as BenchmarkConfig;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(configRaw);
+  } catch (error) {
+    throw new Error(`Invalid JSON in ${configPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  try {
+    return parseBenchmarkConfig(parsed) as BenchmarkConfig;
+  } catch (error) {
+    throw new Error(formatZodError(configPath, error));
+  }
 }
 
 async function loadCases(casesPathArg?: string): Promise<BenchmarkCase[]> {
@@ -225,7 +290,39 @@ async function loadCases(casesPathArg?: string): Promise<BenchmarkCase[]> {
     casesPathArg ??
     path.join(projectRoot, "benchmarks/ai-accuracy/dvd-rental-cases.json");
   const casesRaw = await readFile(casesPath, "utf8");
-  return JSON.parse(casesRaw) as BenchmarkCase[];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(casesRaw);
+  } catch (error) {
+    throw new Error(`Invalid JSON in ${casesPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  try {
+    return parseBenchmarkCases(parsed) as BenchmarkCase[];
+  } catch (error) {
+    throw new Error(formatZodError(casesPath, error));
+  }
+}
+
+function filterCasesById(cases: BenchmarkCase[], caseId?: string): BenchmarkCase[] {
+  if (!caseId) return cases;
+
+  const filtered = cases.filter((benchmarkCase) => benchmarkCase.id === caseId);
+  if (filtered.length > 0) return filtered;
+
+  const knownCaseIds = cases.map((benchmarkCase) => benchmarkCase.id).join(", ");
+  throw new Error(
+    `Unknown --case-id '${caseId}'. Available case IDs: ${knownCaseIds}`
+  );
+}
+
+function resolvePromptSuffix(config: BenchmarkConfig): string {
+  if (config.promptSuffix === null) {
+    return "";
+  }
+  if (typeof config.promptSuffix === "string") {
+    return config.promptSuffix;
+  }
+  return process.env.BENCHMARK_PROMPT_SUFFIX ?? DEFAULT_PROMPT_SUFFIX;
 }
 
 async function runPreflight(params: {
@@ -233,8 +330,10 @@ async function runPreflight(params: {
   endpointPath: string;
   timeoutMs: number;
   cookie: string;
+  requestRetries: number;
+  retryDelayMs: number;
 }): Promise<void> {
-  const response = await postChat({
+  const response = await postChatWithRetry({
     baseUrl: params.baseUrl,
     endpointPath: params.endpointPath,
     cookie: params.cookie,
@@ -243,6 +342,8 @@ async function runPreflight(params: {
       message: "Preflight check for AI benchmark. Reply with a short confirmation.",
       history: [],
     },
+    requestRetries: params.requestRetries,
+    retryDelayMs: params.retryDelayMs,
   });
 
   if (response.statusCode === 401) {
@@ -260,6 +361,9 @@ async function executeBenchmarkCase(params: {
   cookie: string;
   timeoutMs: number;
   delayMs: number;
+  promptSuffix: string;
+  requestRetries: number;
+  retryDelayMs: number;
 }): Promise<BenchmarkRunArtifact[]> {
   const runs: BenchmarkRunArtifact[] = [];
   const { benchmarkCase } = params;
@@ -279,15 +383,17 @@ async function executeBenchmarkCase(params: {
     let timeoutLike = false;
 
     try {
-      const response = await postChat({
+      const response = await postChatWithRetry({
         baseUrl: params.baseUrl,
         endpointPath: params.endpointPath,
         cookie: params.cookie,
         timeoutMs: params.timeoutMs,
         payload: {
-          message: benchmarkCase.prompt + BENCHMARK_PROMPT_SUFFIX,
+          message: benchmarkCase.prompt + params.promptSuffix,
           history: [],
         },
+        requestRetries: params.requestRetries,
+        retryDelayMs: params.retryDelayMs,
       });
 
       statusCode = response.statusCode;
@@ -343,6 +449,52 @@ async function executeBenchmarkCase(params: {
   }
 
   return runs;
+}
+
+async function postChatWithRetry(params: {
+  baseUrl: string;
+  endpointPath: string;
+  cookie: string;
+  timeoutMs: number;
+  payload: Record<string, unknown>;
+  requestRetries: number;
+  retryDelayMs: number;
+}): Promise<{ statusCode: number; body: ChatApiResponse }> {
+  let lastResult: { statusCode: number; body: ChatApiResponse } | undefined;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= params.requestRetries; attempt += 1) {
+    try {
+      const result = await postChat({
+        baseUrl: params.baseUrl,
+        endpointPath: params.endpointPath,
+        cookie: params.cookie,
+        timeoutMs: params.timeoutMs,
+        payload: params.payload,
+      });
+
+      lastResult = result;
+      if (result.statusCode === 401 || result.statusCode === 400 || result.statusCode < 500) {
+        return result;
+      }
+      if (attempt < params.requestRetries) {
+        await sleep(params.retryDelayMs);
+      }
+    } catch (error) {
+      lastError = error;
+      if (attempt < params.requestRetries) {
+        await sleep(params.retryDelayMs);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (lastResult) {
+    return lastResult;
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
 async function postChat(params: {

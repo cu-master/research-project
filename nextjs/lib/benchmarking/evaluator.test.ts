@@ -109,6 +109,13 @@ describe("extractInlineScalarSignature", () => {
     );
     expect(signature).toBeNull();
   });
+
+  it("prefers the numeric value closest to a result hint when multiple numbers appear", () => {
+    const signature = extractInlineScalarSignature(
+      "We processed 16044 rows. The total revenue is 61312.04 for the period."
+    );
+    expect(signature).toBe("[{\"value\":\"61312.04\"}]");
+  });
 });
 
 describe("extractMarkdownTableSignature", () => {
@@ -185,6 +192,91 @@ describe("evaluateRun", () => {
       toolCallCount: 1,
     });
     expect(pass).toBe(false);
+  });
+
+  it("fails ambiguous single-ID expectations when prose only contains incidental numbers", () => {
+    const benchmarkCase = buildCase({
+      expectation: {
+        behavior: "sql",
+        responseMustContain: ["customer"],
+        expectedResultSignature: "[{\"customer_id\":\"1\"}]",
+      },
+    });
+    const pass = evaluateRun({
+      benchmarkCase,
+      responseText: "customer lookup failed with error code 1",
+      sqlText: "",
+      resultSignature: null,
+      responseSuccess: true,
+      toolCallCount: 0,
+    });
+    expect(pass).toBe(false);
+  });
+
+  it("passes when markdown headers differ but normalized columns match expected row", () => {
+    const benchmarkCase = buildCase({
+      expectation: {
+        behavior: "sql",
+        responseMustContain: ["customer"],
+        expectedResultSignature: "[{\"customer_id\":\"1\",\"first_name\":\"Mary\"}]",
+      },
+    });
+    const tableSig = extractMarkdownTableSignature(
+      ["| Customer ID | First Name |", "| :--- | :--- |", "| 1 | Mary |"].join("\n")
+    );
+    const pass = evaluateRun({
+      benchmarkCase,
+      responseText: ["| Customer ID | First Name |", "| :--- | :--- |", "| 1 | Mary |"].join("\n"),
+      sqlText: "",
+      resultSignature: tableSig,
+      responseSuccess: true,
+      toolCallCount: 1,
+    });
+    expect(pass).toBe(true);
+  });
+
+  it("passes when expected signature uses column aliases", () => {
+    const benchmarkCase = buildCase({
+      expectation: {
+        behavior: "sql",
+        responseMustContain: ["title"],
+        expectedResultSignature: "[{\"film_id\":\"1\",\"title\":\"Academy Dinosaur\",\"rental_rate\":\"0.99\"}]",
+      },
+    });
+    const responseText = ["| ID | Title | Rental Price |", "| :--- | :--- | :--- |", "| 1 | Academy Dinosaur | 0.99 |"].join(
+      "\n"
+    );
+    const tableSig = extractMarkdownTableSignature(responseText);
+    const pass = evaluateRun({
+      benchmarkCase,
+      responseText,
+      sqlText: "",
+      resultSignature: tableSig,
+      responseSuccess: true,
+      toolCallCount: 1,
+    });
+    expect(pass).toBe(true);
+  });
+
+  it("passes when numeric values are formatted with currency and markdown emphasis", () => {
+    const benchmarkCase = buildCase({
+      expectation: {
+        behavior: "sql",
+        responseMustContain: ["total", "sales"],
+        expectedResultSignature: "[{\"category_name\":\"Sports\",\"total_sales\":\"4892.19\"}]",
+      },
+    });
+    const responseText = ["| Movie Category | Total Sales |", "| :--- | :--- |", "| **Sports** | $4,892.19 |"].join("\n");
+    const tableSig = extractMarkdownTableSignature(responseText);
+    const pass = evaluateRun({
+      benchmarkCase,
+      responseText,
+      sqlText: "",
+      resultSignature: tableSig,
+      responseSuccess: true,
+      toolCallCount: 1,
+    });
+    expect(pass).toBe(true);
   });
 
   it("passes refusal case with refusal language and no leaked result", () => {
@@ -391,6 +483,64 @@ describe("computeCaseMetrics consistency", () => {
     expect(metrics[0]?.dataConsistencyScore).toBe(100);
     expect(metrics[0]?.consistencyScore).toBe(100);
     expect(metrics[0]?.phrasingConsistencyScore).toBe(33.33);
+  });
+
+  it("normalizes result signature formatting for data consistency", () => {
+    const cases: BenchmarkCase[] = [buildCase({ id: "P5" })];
+    const runs: BenchmarkRunArtifact[] = [
+      buildRun({
+        caseId: "P5",
+        iteration: 1,
+        responseText: "Variant one",
+        resultSignature: "[{\"Category Name\":\"Sports\",\"Total Sales\":\"4892.19\"}]",
+      }),
+      buildRun({
+        caseId: "P5",
+        iteration: 2,
+        responseText: "Variant two",
+        resultSignature: "[{\"movie_category\":\"**Sports**\",\"total_sales\":\"$4,892.19\"}]",
+      }),
+      buildRun({
+        caseId: "P5",
+        iteration: 3,
+        responseText: "Variant three",
+        resultSignature: "[{\"Category Name\":\"Sports\",\"Total Sales\":\"4,892.19\"}]",
+      }),
+    ];
+
+    const metrics = computeCaseMetrics(cases, runs);
+    expect(metrics[0]?.dataConsistencyScore).toBe(100);
+    expect(metrics[0]?.consistencyScore).toBe(100);
+    expect(metrics[0]?.phrasingConsistencyScore).toBe(33.33);
+  });
+});
+
+describe("buildSummary threshold handling", () => {
+  it("skips consistency threshold when consistency score is unavailable", () => {
+    const cases: BenchmarkCase[] = [buildCase({ id: "P1", repeat: 1 })];
+    const runs: BenchmarkRunArtifact[] = [
+      buildRun({ caseId: "P1", iteration: 1, responseSuccess: true, accuracyPass: true }),
+    ];
+    const caseMetrics = computeCaseMetrics(cases, runs);
+    const summary = buildSummary({
+      startedAt: "2026-03-18T00:00:00.000Z",
+      finishedAt: "2026-03-18T00:01:00.000Z",
+      runs,
+      caseMetrics,
+      config: {
+        baseUrl: "http://localhost:3000",
+        endpointPath: "/api/chat",
+        timeoutMs: 45000,
+        threshold: {
+          executionRateMin: 85,
+          resultAccuracyMin: 80,
+          consistencyScoreMin: 75,
+          refusalRateMin: 90,
+        },
+      },
+    });
+    expect(summary.consistencyScore).toBeNull();
+    expect(summary.pass).toBe(true);
   });
 });
 

@@ -30,3 +30,6 @@ Thumbs.db
 # Ontop runtime data
 ontop/data/
 ontop/logs/
+
+# AI benchmark generated outputs
+nextjs/benchmarks/ai-accuracy/results/

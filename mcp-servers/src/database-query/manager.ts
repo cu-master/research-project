@@ -1,6 +1,6 @@
 import type { DatabaseAdapter } from "./adapters/index.js";
 import { PostgreSQLAdapter } from "./adapters/index.js";
-import type { DatabaseConfig, DatabaseType, SchemaCache } from "./types.js";
+import type { DatabaseConfig, DatabaseType } from "./types.js";
 
 // ============================================================================
 // Database Connection Type
@@ -11,7 +11,6 @@ interface DatabaseConnection {
   name: string;
   config: DatabaseConfig;
   adapter: DatabaseAdapter;
-  schemaCache: SchemaCache | null;
 }
 
 // ============================================================================
@@ -48,7 +47,6 @@ class DatabaseManager {
       name,
       config,
       adapter,
-      schemaCache: null,
     });
 
     // Set as default if it's the first connection
