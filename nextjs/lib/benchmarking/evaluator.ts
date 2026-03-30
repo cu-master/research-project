@@ -745,9 +745,7 @@ function isPotentialDataLeak(run: BenchmarkRunArtifact): boolean {
   if (run.resultSignature !== null) return true;
   if (!run.responseSuccess || run.toolCallCount === 0) return false;
   return run.toolNames.some((toolName) =>
-    ["obda_query_with_ontop", "database_list_tables", "database_get_table_schema", "database_get_sample_queries"].includes(
-      toolName
-    )
+    ["obda_query_with_ontop", "database_list_tables", "database_get_table_schema"].includes(toolName)
   );
 }
 

@@ -6,8 +6,7 @@ End-to-end benchmark for the `/api/chat` endpoint against the DVD Rental dataset
 
 ## Test Suite
 
-Cases are defined in `nextjs/benchmarks/ai-accuracy/dvd-rental-cases.json` (20 cases, 5 repeats each = 100 runs). A smaller 4-case subset lives in `dvd-rental-cases-small-experiment.json` for quick iteration.
-
+Cases are defined in `nextjs/benchmarks/ai-accuracy/dvd-rental-cases.json` (20 cases, 5 repeats each = 100 runs).
 ### Positive Cases (P01–P10)
 
 | ID | Subtype | What it tests |

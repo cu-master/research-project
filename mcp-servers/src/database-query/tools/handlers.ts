@@ -1,12 +1,10 @@
 import type { McpResponse } from "../../shared/types.js";
 import { dbManager } from "../manager.js";
-import { callAI } from "../ai/index.js";
 import {
   createMcpResponse,
   formatApiError,
 } from "../utils.js";
 import {
-  getSampleQueriesSchema,
   getTableSchemaSchema,
   listTablesSchema,
 } from "./schemas.js";
@@ -115,53 +113,4 @@ export async function handleGetTableSchema(args: Record<string, unknown>): Promi
   }
 }
 
-// ============================================================================
-// Sample Queries Handler
-// ============================================================================
-
-export async function handleGetSampleQueries(args: Record<string, unknown>): Promise<McpResponse> {
-  try {
-    const { tableName, queryType = "all", databaseId } = getSampleQueriesSchema.parse(args);
-
-    const adapter = dbManager.getAdapter(databaseId);
-    const connection = dbManager.getConnection(databaseId);
-    const schemaContext = await adapter.buildSchemaContext();
-
-    const typeInstruction =
-      queryType === "all"
-        ? "Include examples of SELECT, INSERT, UPDATE, DELETE, aggregate functions, and JOIN queries."
-        : `Focus on ${queryType.toUpperCase()} queries.`;
-
-    const tableInstruction = tableName
-      ? `Generate sample queries specifically for the "${tableName}" table and its related tables.`
-      : "Generate sample queries for the most important tables in the schema.";
-
-    const prompt = `You are a SQL expert. Generate practical sample queries based on the following database schema.
-
-${schemaContext}
-
-${tableInstruction}
-${typeInstruction}
-
-For each query, provide:
-1. A natural language description of what the query does
-2. The SQL query
-
-Format each example as:
-### [Query Title]
-**Description:** [What the query does]
-\`\`\`sql
-[SQL query]
-\`\`\`
-
-Generate 5-8 practical, real-world examples that would be commonly used with this schema.`;
-
-    const response = await callAI(prompt, 3000);
-
-    return createMcpResponse(
-      `# Sample Queries\n\n**Database:** ${connection.name} (${connection.id})\n\n${response}`
-    );
-  } catch (error) {
-    return createMcpResponse(`Error generating sample queries: ${formatApiError(error)}`, true);
-  }
-}
+// (get-sample-queries tool removed)

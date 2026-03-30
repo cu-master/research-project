@@ -3,117 +3,12 @@ import { callAI } from "../ai/index.js";
 import { createMcpResponse, formatApiError } from "../utils.js";
 import {
   answerQuerySchema,
-  conceptualDefinitionSchema,
   summarizeContentSchema,
   explainMappingSchema,
+  compareSchemaMappingSchema,
+  suggestQueriesSchema,
 } from "./schemas.js";
 
-type ConceptualDefinitionPayload = {
-  entities: string[];
-  attributes: string[];
-  relationships: string[];
-  summary: string;
-};
-
-function parseJsonObject<T>(raw: string): T | null {
-  try {
-    let jsonString = raw.trim();
-    jsonString = jsonString
-      .replace(/^```(?:json)?\s*\n?/i, "")
-      .replace(/\n?\s*```$/i, "");
-    const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-    return JSON.parse(jsonMatch[0]) as T;
-  } catch {
-    return null;
-  }
-}
-
-function buildConceptualDefinitionPrompt(query: string, content: string): string {
-  return `You are a content interpretation assistant for a Retrieval-Augmented Generation (RAG) workflow.
-
-Your job is to "semantically prune" the provided content: extract ONLY the conceptual entities, attributes, and relationships that are relevant to the user's query.
-
-User Query:
-"${query}"
-
-Content (conceptual model / spec):
----
-${content}
----
-
-Output requirements:
-- Be concise and specific.
-- Use ONLY concepts present in the content.
-- Prefer the domain language (conceptual names), not physical DB names.
-- Output a structured JSON object representing the extracted schema.
-
-Return a JSON object with this exact structure:
-{
-  "entities": ["array of exact entity names"],
-  "attributes": ["array of key attributes needed"],
-  "relationships": ["array of relationship descriptions (e.g., 'Order connects to Customer')"],
-  "summary": "a single focused sentence summarizing the relevant concepts"
-}
-
-Return ONLY the JSON object, no additional text or markdown formatting.`;
-}
-
-function buildConceptualDefinitionRetryPrompt(query: string, content: string): string {
-  return `Return ONLY a VALID JSON object.
-No markdown, no explanation, no code fences.
-
-Schema (exact keys required):
-{
-  "entities": ["string"],
-  "attributes": ["string"],
-  "relationships": ["string"],
-  "summary": "string"
-}
-
-Constraints:
-- Keep arrays short (max 8 items each).
-- Keep summary to one sentence (max 30 words).
-- Use only concepts present in the content.
-- Ensure JSON is complete and parseable.
-
-User Query:
-"${query}"
-
-Content:
----
-${content}
----`;
-}
-
-function ensureConceptualDefinitionShape(
-  parsed: Partial<ConceptualDefinitionPayload> | null
-): ConceptualDefinitionPayload {
-  if (!parsed || typeof parsed !== "object") {
-    return {
-      entities: [],
-      attributes: [],
-      relationships: [],
-      summary: "No relevant conceptual entities were extracted.",
-    };
-  }
-
-  return {
-    entities: Array.isArray(parsed.entities)
-      ? parsed.entities.filter((v): v is string => typeof v === "string")
-      : [],
-    attributes: Array.isArray(parsed.attributes)
-      ? parsed.attributes.filter((v): v is string => typeof v === "string")
-      : [],
-    relationships: Array.isArray(parsed.relationships)
-      ? parsed.relationships.filter((v): v is string => typeof v === "string")
-      : [],
-    summary:
-      typeof parsed.summary === "string" && /\S/.test(parsed.summary)
-        ? parsed.summary.trim()
-        : "No relevant conceptual entities were extracted.",
-  };
-}
 
 // ============================================================================
 // Answer Query Handler
@@ -148,36 +43,21 @@ ${content}
    - If the content describes data models, schemas, or structures, explain entities, relationships, data types, and constraints when relevant
    - If the content is documentation or general text, summarize and explain the relevant sections
 
-3. **Related Topics Analysis:**
-   - After answering the main query, analyze the content to identify:
-     - Related concepts or topics that are connected to the answer
-     - Additional details that might be relevant but weren't directly asked about
-   - Generate 3-5 suggested follow-up topics that would help the user explore related aspects of the content
-
 **Output Format:**
 Return a JSON object with this exact structure:
 {
-  "explanation": "Natural language explanation with explicit references to the provided content...",
-  "suggestedFollowUps": [
-    "Suggested follow-up question 1",
-    "Suggested follow-up question 2",
-    "Suggested follow-up question 3"
-  ]
+  "explanation": "Natural language explanation with explicit references to the provided content..."
 }
 
 **Important:**
 - Be specific and reference exact names, terms, and sections from the content
 - The explanation should be comprehensive but focused on answering the user's query
-- Suggested follow-ups should help users discover related aspects of the content
 - Return ONLY the JSON object, no additional text or markdown formatting`;
 
     console.log(`[AnswerQuery] Generating explanation`);
     const aiResponse = await callAI(prompt, 8000);
 
-    let parsedResponse: {
-      explanation: string;
-      suggestedFollowUps: string[];
-    };
+    let parsedResponse: { explanation: string };
 
     try {
       let jsonString = aiResponse.trim();
@@ -198,21 +78,9 @@ Return a JSON object with this exact structure:
       );
     }
 
-    const formattedResponse = {
-      explanation: parsedResponse.explanation,
-      suggestedFollowUps: parsedResponse.suggestedFollowUps || [],
-    };
+    const responseText = `## Explanation\n\n${parsedResponse.explanation}\n`;
 
-    let responseText = `## Explanation\n\n${formattedResponse.explanation}\n\n`;
-
-    if (formattedResponse.suggestedFollowUps.length > 0) {
-      responseText += `## Suggested Follow-up Topics\n\n`;
-      formattedResponse.suggestedFollowUps.forEach((followUp, index) => {
-        responseText += `${index + 1}. ${followUp}\n`;
-      });
-    }
-
-    console.log(`[AnswerQuery] Generated response with ${formattedResponse.suggestedFollowUps.length} follow-up suggestions`);
+    console.log(`[AnswerQuery] Generated explanation`);
 
     return createMcpResponse(responseText);
   } catch (error) {
@@ -223,66 +91,6 @@ Return a JSON object with this exact structure:
   }
 }
 
-// ============================================================================
-// Conceptual Definition Handler (Semantic Pruning)
-// ============================================================================
-
-export async function handleConceptualDefinition(
-  args: Record<string, unknown>
-): Promise<McpResponse> {
-  try {
-    const { query, content } = conceptualDefinitionSchema.parse(args);
-
-    console.log(`[ConceptualDefinition] Processing query: "${query}"`);
-    console.log(`[ConceptualDefinition] Content length: ${content.length} chars`);
-
-    const prompt = buildConceptualDefinitionPrompt(query, content);
-
-    let aiResponse = await callAI(prompt, 800);
-    console.log(`[ConceptualDefinition] Output:\n${aiResponse}`);
-
-    let parsed = parseJsonObject<ConceptualDefinitionPayload>(aiResponse);
-
-    if (!parsed) {
-      console.warn(
-        `[ConceptualDefinition] First parse failed; retrying with stricter JSON prompt`
-      );
-      const retryPrompt = buildConceptualDefinitionRetryPrompt(query, content);
-      aiResponse = await callAI(retryPrompt, 800);
-      console.log(`[ConceptualDefinition] Retry output:\n${aiResponse}`);
-      parsed = parseJsonObject<ConceptualDefinitionPayload>(aiResponse);
-    }
-
-    if (!parsed) {
-      console.warn(
-        `[ConceptualDefinition] Retry parse failed; using safe empty structured fallback`
-      );
-    }
-
-    const normalized = ensureConceptualDefinitionShape(parsed);
-
-    let responseText = `**Conceptual Summary:** ${normalized.summary}\n\n`;
-    
-    if (normalized.entities.length > 0) {
-      responseText += `**Entities:**\n${normalized.entities.map(e => `- ${e}`).join("\\n")}\n\n`;
-    }
-    
-    if (normalized.attributes.length > 0) {
-      responseText += `**Attributes:**\n${normalized.attributes.map(a => `- ${a}`).join("\\n")}\n\n`;
-    }
-
-    if (normalized.relationships.length > 0) {
-      responseText += `**Relationships:**\n${normalized.relationships.map(r => `- ${r}`).join("\\n")}\n`;
-    }
-
-    return createMcpResponse(responseText.trim());
-  } catch (error) {
-    return createMcpResponse(
-      `Error creating conceptual definition: ${formatApiError(error)}`,
-      true
-    );
-  }
-}
 
 // ============================================================================
 // Summarize Content Handler
@@ -539,6 +347,193 @@ Return a JSON object with this exact structure:
   } catch (error) {
     return createMcpResponse(
       `Error explaining mapping: ${formatApiError(error)}`,
+      true
+    );
+  }
+}
+
+
+// ============================================================================
+// Compare Schema & Mapping Handler
+// ============================================================================
+
+export async function handleCompareSchemaMapping(
+  args: Record<string, unknown>
+): Promise<McpResponse> {
+  try {
+    const { ontology, dbSchema, mapping } = compareSchemaMappingSchema.parse(args);
+
+    console.log(`[CompareSchemaMapping] Processing comparison`);
+
+    const prompt = `You are a data integration expert. Your task is to analyze the alignment between a domain ontology (conceptual model), a database schema, and an R2RML mapping that connects them.
+    
+Identify gaps, unmapped concepts, unmapped tables/columns, and any inconsistencies.
+
+**Domain Ontology:**
+---
+${ontology}
+---
+
+**Database Schema:**
+---
+${dbSchema}
+---
+
+**R2RML Mapping:**
+---
+${mapping}
+---
+
+**Instructions:**
+1. **Ontology Coverage:** Which entities or properties in the ontology are NOT mapped?
+2. **Schema Coverage:** Which tables or columns in the database are NOT mapped? (Ignore basic audit columns like created_at if obviously irrelevant).
+3. **Inconsistencies:** Are there mappings to ontology properties that don't exist? Mappings from DB columns that don't exist? Data type mismatches?
+
+**Output Format:**
+Return a JSON object with this exact structure:
+{
+  "unmappedOntologyConcepts": ["List of conceptual entities/properties not mapped"],
+  "unmappedDatabaseElements": ["List of tables/columns not mapped"],
+  "inconsistencies": ["List of any errors or mismatches found"],
+  "summary": "A brief overall assessment of the mapping completeness and quality"
+}
+
+Return ONLY the JSON object, no markdown formatting.`;
+
+    const aiResponse = await callAI(prompt, 8000);
+
+    let parsed: {
+      unmappedOntologyConcepts: string[];
+      unmappedDatabaseElements: string[];
+      inconsistencies: string[];
+      summary: string;
+    };
+
+    try {
+      let jsonString = aiResponse.trim();
+      jsonString = jsonString
+        .replace(/^```(?:json)?\s*\n?/i, "")
+        .replace(/\n?\s*```$/i, "");
+      const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error("No JSON object found in response");
+      }
+    } catch {
+      console.warn(`[CompareSchemaMapping] Failed to parse structured response, using raw text`);
+      return createMcpResponse(aiResponse);
+    }
+
+    let responseText = `## Alignment Analysis\n\n**Summary:** ${parsed.summary}\n\n`;
+
+    if (parsed.unmappedOntologyConcepts.length > 0) {
+      responseText += `### Unmapped Ontology Concepts\n`;
+      parsed.unmappedOntologyConcepts.forEach((item) => {
+        responseText += `- ${item}\n`;
+      });
+      responseText += `\n`;
+    }
+
+    if (parsed.unmappedDatabaseElements.length > 0) {
+      responseText += `### Unmapped Database Elements\n`;
+      parsed.unmappedDatabaseElements.forEach((item) => {
+        responseText += `- ${item}\n`;
+      });
+      responseText += `\n`;
+    }
+
+    if (parsed.inconsistencies.length > 0) {
+      responseText += `### Mapping Inconsistencies\n`;
+      parsed.inconsistencies.forEach((item) => {
+        responseText += `- ${item}\n`;
+      });
+      responseText += `\n`;
+    }
+
+    return createMcpResponse(responseText);
+  } catch (error) {
+    return createMcpResponse(
+      `Error comparing schema and mapping: ${formatApiError(error)}`,
+      true
+    );
+  }
+}
+
+// ============================================================================
+// Suggest Queries Handler
+// ============================================================================
+
+export async function handleSuggestQueries(
+  args: Record<string, unknown>
+): Promise<McpResponse> {
+  try {
+    const { ontology, dbSchema } = suggestQueriesSchema.parse(args);
+
+    console.log(`[SuggestQueries] Generating suggestions`);
+
+    const dbContext = dbSchema 
+      ? `\n**Database Schema (for grounding available data):**\n---\n${dbSchema}\n---`
+      : "";
+
+    const prompt = `You are a data analyst assistant. Your task is to generate 5-7 meaningful, natural-language business questions that can be answered using the provided domain ontology.
+
+**Domain Ontology:**
+---
+${ontology}
+---${dbContext}
+
+**Instructions:**
+1. Generate natural language questions (e.g. "What is the total revenue by product category?").
+2. Ensure the questions only reference entities and properties that exist in the ontology.
+3. If a database schema is provided, try to ensure the questions can actually be answered by the available data.
+4. Provide a mix of simple lookups, aggregations, and relationship-spanning questions.
+
+**Output Format:**
+Return a JSON object with this exact structure:
+{
+  "suggestions": [
+    {
+      "question": "The natural language question",
+      "rationale": "Why this is a useful question and what entities it uses"
+    }
+  ]
+}
+
+Return ONLY the JSON object, no markdown formatting.`;
+
+    const aiResponse = await callAI(prompt, 6000);
+
+    let parsed: {
+      suggestions: { question: string; rationale: string }[];
+    };
+
+    try {
+      let jsonString = aiResponse.trim();
+      jsonString = jsonString
+        .replace(/^```(?:json)?\s*\n?/i, "")
+        .replace(/\n?\s*```$/i, "");
+      const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error("No JSON object found in response");
+      }
+    } catch {
+      console.warn(`[SuggestQueries] Failed to parse structured response, using raw text`);
+      return createMcpResponse(aiResponse);
+    }
+
+    let responseText = `## Suggested Queries\n\nHere are some questions you can ask based on the project's conceptual model:\n\n`;
+
+    parsed.suggestions.forEach((s, i) => {
+      responseText += `**${i + 1}. ${s.question}**\n* ${s.rationale}\n\n`;
+    });
+
+    return createMcpResponse(responseText);
+  } catch (error) {
+    return createMcpResponse(
+      `Error generating query suggestions: ${formatApiError(error)}`,
       true
     );
   }

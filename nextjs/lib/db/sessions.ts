@@ -148,8 +148,6 @@ export async function saveMessage(
     const updateData: Prisma.SessionUpdateInput = {
       updated_at: new Date(),
       message_count: session._count.messages,
-      is_archived: false,
-      archived_at: null
     };
 
     // Auto-generate title if this is the first real user message

@@ -1,6 +1,6 @@
 "use client";
 
-import { PencilSquareIcon, ChevronLeftIcon, ChevronRightIcon, TrashIcon, XMarkIcon, FolderIcon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
+import { PencilSquareIcon, ChevronLeftIcon, ChevronRightIcon, TrashIcon, XMarkIcon, FolderIcon, ArrowRightOnRectangleIcon, CpuChipIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useSidebar } from "./sidebar-context";
 import { useSession } from "./session-context";
@@ -238,6 +238,15 @@ export default function Sidebar() {
         >
           <FolderIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
           {!isCollapsed && <span>Projects</span>}
+        </Link>
+        <Link
+          href={"/agent" as any}
+          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200/50 hover:text-gray-900 ${isCollapsed ? "justify-center" : ""
+            }`}
+          title="Agent settings"
+        >
+          <CpuChipIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+          {!isCollapsed && <span>Agent</span>}
         </Link>
       </div>
 

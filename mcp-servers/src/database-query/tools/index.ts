@@ -1,13 +1,11 @@
 import type { ToolDefinition } from "../../shared/types.js";
 import { zodToJsonSchema } from "../../shared/utils.js";
 import {
-  getSampleQueriesSchema,
   getTableSchemaSchema,
   listTablesSchema,
   obdaQuerySchema,
 } from "./schemas.js";
 import {
-  handleGetSampleQueries,
   handleGetTableSchema,
   handleListTables,
 } from "./handlers.js";
@@ -30,12 +28,6 @@ export const tools: ToolDefinition[] = [
       "Get detailed schema information for a specific table including columns, types, constraints, and foreign keys.",
     inputSchema: zodToJsonSchema(getTableSchemaSchema),
     handler: handleGetTableSchema,
-  },
-  {
-    name: "get-sample-queries",
-    description: "Generate sample SQL queries based on the database schema.",
-    inputSchema: zodToJsonSchema(getSampleQueriesSchema),
-    handler: handleGetSampleQueries,
   },
   {
     name: "obda-query",

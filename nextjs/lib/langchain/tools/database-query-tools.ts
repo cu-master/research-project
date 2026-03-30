@@ -82,37 +82,3 @@ export const getTableSchemaTool = tool(
     schema: getTableSchemaArgsSchema as z.ZodType<z.infer<typeof getTableSchemaArgsSchema>>,
   }
 );
-
-
-// ============================================================================
-// Get Sample Queries Tool
-// ============================================================================
-
-const getSampleQueriesArgsSchema = z.object({
-  tableName: z
-    .string()
-    .optional()
-    .describe("Specific table to generate sample queries for (leave empty for general examples)"),
-  queryType: z
-    .enum(["select", "insert", "update", "delete", "aggregate", "join", "all"])
-    .optional()
-    .describe("Type of queries to generate (default: all)"),
-  databaseId: z.string().optional().describe("ID of the database to use (uses project database if not specified)"),
-});
-
-export const getSampleQueriesTool = tool(
-  async (args: z.infer<typeof getSampleQueriesArgsSchema>) => {
-    const databaseId = args.databaseId || (await resolveProjectDatabaseId());
-    if (!databaseId) {
-      return "Error: No database configured for this project. Please add database connection details to the project settings.";
-    }
-    return callDatabaseQueryTool("get-sample-queries", { ...args, databaseId });
-  },
-  {
-    name: "database_get_sample_queries",
-    description:
-      "Generate sample SQL queries based on the database schema. " +
-      "Useful for learning the data model, getting started with queries, or providing examples to the user.",
-    schema: getSampleQueriesArgsSchema as z.ZodType<z.infer<typeof getSampleQueriesArgsSchema>>,
-  }
-);

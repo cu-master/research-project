@@ -2,15 +2,17 @@ import type { ToolDefinition } from "../../shared/types.js";
 import { zodToJsonSchema } from "../../shared/utils.js";
 import {
   answerQuerySchema,
-  conceptualDefinitionSchema,
   summarizeContentSchema,
   explainMappingSchema,
+  compareSchemaMappingSchema,
+  suggestQueriesSchema,
 } from "./schemas.js";
 import {
   handleAnswerQuery,
-  handleConceptualDefinition,
   handleSummarizeContent,
   handleExplainMapping,
+  handleCompareSchemaMapping,
+  handleSuggestQueries,
 } from "./handlers.js";
 
 // ============================================================================
@@ -22,17 +24,9 @@ export const tools: ToolDefinition[] = [
   {
     name: "answer-query",
     description:
-      "Answers questions using provided content as context. The content (typically URL content from a project) must be passed directly via the 'content' parameter. Returns a comprehensive explanation with suggested follow-up topics.",
+      "Answers questions using provided content as context. The content (typically URL content from a project) must be passed directly via the 'content' parameter. Returns a comprehensive explanation referencing the provided content.",
     inputSchema: zodToJsonSchema(answerQuerySchema),
     handler: handleAnswerQuery,
-  },
-  // === Conceptual Definition (Semantic Pruning) ===
-  {
-    name: "conceptual-definition",
-    description:
-      "Given a user query and provided content (typically URL content describing a conceptual model), returns a concise conceptual definition (entities, attributes, relationships) relevant to the query. This is intended for the Tier-2 Orchestrator RAG workflow: interpretation -> synthesis -> SQL.",
-    inputSchema: zodToJsonSchema(conceptualDefinitionSchema),
-    handler: handleConceptualDefinition,
   },
   // === Summarize Content ===
   {
@@ -49,6 +43,22 @@ export const tools: ToolDefinition[] = [
       "Explains an R2RML mapping in plain, non-technical language. Takes a Turtle (TTL) R2RML mapping and produces a human-readable breakdown of each TriplesMap: which tables map to which classes, how columns map to properties, and how joins represent relationships. Optionally cross-references against project content for richer explanations.",
     inputSchema: zodToJsonSchema(explainMappingSchema),
     handler: handleExplainMapping,
+  },
+  // === Compare Schema Mapping ===
+  {
+    name: "compare-schema-mapping",
+    description:
+      "Given the domain ontology, database schema, and R2RML mapping, identifies gaps such as unmapped ontology concepts, unmapped database tables/columns, and any mapping inconsistencies.",
+    inputSchema: zodToJsonSchema(compareSchemaMappingSchema),
+    handler: handleCompareSchemaMapping,
+  },
+  // === Suggest Queries ===
+  {
+    name: "suggest-queries",
+    description:
+      "Given the domain ontology and optionally the database schema, generates a list of meaningful, natural-language business questions that can be asked using the available conceptual model.",
+    inputSchema: zodToJsonSchema(suggestQueriesSchema),
+    handler: handleSuggestQueries,
   },
 ];
 

@@ -1,0 +1,313 @@
+{
+    "ontologyName": "MoMA Collection Schema (Expanded)",
+    "version": "2.0",
+    "domain": "Cultural Heritage / Museum Catalog",
+    "source": "https://github.com/MuseumofModernArt/collection",
+    "entities": {
+        "Artist": {
+            "description": "An individual, collective, or company involved in the creation of an artwork.",
+            "properties": {
+                "constituentId": {
+                    "type": "integer",
+                    "required": true,
+                    "notes": "Primary Key"
+                },
+                "displayName": {
+                    "type": "string",
+                    "required": true
+                },
+                "artistBio": {
+                    "type": "string",
+                    "required": false
+                },
+                "nationality": {
+                    "type": "string",
+                    "required": false
+                },
+                "gender": {
+                    "type": "string",
+                    "required": false
+                },
+                "birthYear": {
+                    "type": "integer",
+                    "required": false
+                },
+                "deathYear": {
+                    "type": "integer",
+                    "required": false
+                },
+                "birthPlace": {
+                    "type": "string",
+                    "required": false
+                },
+                "activeCity": {
+                    "type": "string",
+                    "required": false
+                },
+                "wikiQid": {
+                    "type": "string",
+                    "required": false,
+                    "notes": "Wikidata entity ID"
+                },
+                "ulan": {
+                    "type": "string",
+                    "required": false,
+                    "notes": "Getty Union List of Artist Names ID"
+                }
+            },
+            "relationships": {
+                "artworks": "Many-to-Many with Artwork entity (via ArtworkArtistMapping)"
+            }
+        },
+        "Artwork": {
+            "description": "An individual piece of art accessioned into the museum's collection.",
+            "properties": {
+                "objectId": {
+                    "type": "integer",
+                    "required": true,
+                    "notes": "Primary Key"
+                },
+                "title": {
+                    "type": "string",
+                    "required": true
+                },
+                "displayDate": {
+                    "type": "string",
+                    "required": false,
+                    "notes": "Human-readable date string"
+                },
+                "creationYear": {
+                    "type": "integer",
+                    "required": false,
+                    "notes": "Strict year for sorting"
+                },
+                "medium": {
+                    "type": "string",
+                    "required": false
+                },
+                "dimensions": {
+                    "type": "string",
+                    "required": false
+                },
+                "edition": {
+                    "type": "string",
+                    "required": false
+                },
+                "accessionNumber": {
+                    "type": "string",
+                    "required": true
+                },
+                "copyrightStatus": {
+                    "type": "string",
+                    "required": true
+                },
+                "dateAcquired": {
+                    "type": "string",
+                    "format": "date",
+                    "required": false
+                },
+                "departmentId": {
+                    "type": "integer",
+                    "required": true,
+                    "notes": "Foreign Key to Department"
+                },
+                "locationId": {
+                    "type": "integer",
+                    "required": false,
+                    "notes": "Foreign Key to Location"
+                },
+                "fundingSourceId": {
+                    "type": "integer",
+                    "required": false,
+                    "notes": "Foreign Key to FundingSource"
+                },
+                "cataloged": {
+                    "type": "string",
+                    "enum": [
+                        "Y",
+                        "N"
+                    ],
+                    "required": true
+                }
+            },
+            "relationships": {
+                "artists": "Many-to-Many with Artist entity",
+                "exhibitions": "Many-to-Many with Exhibition entity",
+                "department": "Many-to-1 with Department entity",
+                "location": "Many-to-1 with Location entity",
+                "fundingSource": "Many-to-1 with FundingSource entity"
+            }
+        },
+        "ArtworkArtistMapping": {
+            "description": "Junction table linking Artworks to their Artists.",
+            "properties": {
+                "mappingId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "required": true,
+                    "notes": "Primary Key"
+                },
+                "objectId": {
+                    "type": "integer",
+                    "required": true,
+                    "notes": "Foreign Key to Artwork"
+                },
+                "constituentId": {
+                    "type": "integer",
+                    "required": true,
+                    "notes": "Foreign Key to Artist"
+                },
+                "role": {
+                    "type": "string",
+                    "required": false,
+                    "notes": "e.g., 'Artist', 'Publisher'"
+                },
+                "displayOrder": {
+                    "type": "integer",
+                    "required": true,
+                    "notes": "Order of precedence for display"
+                }
+            }
+        },
+        "Department": {
+            "description": "Curatorial departments within the museum.",
+            "properties": {
+                "departmentId": {
+                    "type": "integer",
+                    "required": true,
+                    "notes": "Primary Key"
+                },
+                "name": {
+                    "type": "string",
+                    "required": true
+                },
+                "chiefCurator": {
+                    "type": "string",
+                    "required": false
+                }
+            },
+            "relationships": {
+                "artworks": "1-to-Many with Artwork entity"
+            }
+        },
+        "Location": {
+            "description": "Physical tracking of where an object currently resides.",
+            "properties": {
+                "locationId": {
+                    "type": "integer",
+                    "required": true,
+                    "notes": "Primary Key"
+                },
+                "name": {
+                    "type": "string",
+                    "required": true
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "Gallery",
+                        "Storage",
+                        "Conservation",
+                        "On Loan"
+                    ],
+                    "required": true
+                },
+                "publicAccess": {
+                    "type": "boolean",
+                    "required": true
+                }
+            },
+            "relationships": {
+                "artworks": "1-to-Many with Artwork entity"
+            }
+        },
+        "FundingSource": {
+            "description": "The endowment, fund, or donor responsible for the acquisition.",
+            "properties": {
+                "fundingSourceId": {
+                    "type": "integer",
+                    "required": true,
+                    "notes": "Primary Key"
+                },
+                "name": {
+                    "type": "string",
+                    "required": true
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "Individual Donor",
+                        "Corporate Sponsor",
+                        "Endowment",
+                        "Museum Fund"
+                    ],
+                    "required": true
+                }
+            },
+            "relationships": {
+                "artworks": "1-to-Many with Artwork entity"
+            }
+        },
+        "Exhibition": {
+            "description": "A curated public display of artworks.",
+            "properties": {
+                "exhibitionId": {
+                    "type": "integer",
+                    "required": true,
+                    "notes": "Primary Key"
+                },
+                "title": {
+                    "type": "string",
+                    "required": true
+                },
+                "startDate": {
+                    "type": "string",
+                    "format": "date",
+                    "required": true
+                },
+                "endDate": {
+                    "type": "string",
+                    "format": "date",
+                    "required": false
+                },
+                "curator": {
+                    "type": "string",
+                    "required": false
+                },
+                "venues": {
+                    "type": "string",
+                    "required": false
+                }
+            },
+            "relationships": {
+                "artworks": "Many-to-Many with Artwork entity (via ExhibitionArtworkMapping)"
+            }
+        },
+        "ExhibitionArtworkMapping": {
+            "description": "Junction table linking Artworks to the Exhibitions they were featured in.",
+            "properties": {
+                "mappingId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "required": true,
+                    "notes": "Primary Key"
+                },
+                "exhibitionId": {
+                    "type": "integer",
+                    "required": true,
+                    "notes": "Foreign Key to Exhibition"
+                },
+                "objectId": {
+                    "type": "integer",
+                    "required": true,
+                    "notes": "Foreign Key to Artwork"
+                },
+                "catalogNumber": {
+                    "type": "string",
+                    "required": false,
+                    "notes": "The item's number in the printed exhibition catalog"
+                }
+            }
+        }
+    }
+}

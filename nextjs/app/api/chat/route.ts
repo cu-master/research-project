@@ -13,6 +13,10 @@ import { runWithLangChainRequestContext } from "@/lib/langchain/request-context"
 import { getAuthUserId } from "@/lib/auth-helpers";
 import { getDefaultProjectId } from "@/lib/db/users";
 import { getProject } from "@/lib/db/projects";
+import { getUserAgentConfig } from "@/lib/db/agent-config";
+import { getRuntimeConfig, setRuntimeModel, setRuntimeApiKey } from "@/lib/langchain/model";
+import { resetAgent } from "@/lib/langchain/agent";
+import type { ModelProvider } from "@/lib/langchain/types";
 
 type StreamToolCall = {
   tool: string;
@@ -36,7 +40,6 @@ const TOOL_LABELS: Record<string, string> = {
   explain_mapping: "Interpreting ontology mapping",
   database_list_tables: "Inspecting database tables",
   database_get_table_schema: "Inspecting table schema",
-  database_get_sample_queries: "Preparing sample queries",
 };
 
 const MUTATION_INTENT_PATTERNS: RegExp[] = [
@@ -131,10 +134,9 @@ export async function POST(request: Request) {
     const { message, history, sessionId } = parsedBody;
     const safeMessage = typeof message === "string" ? message : "";
 
-    console.log("Processing message:", safeMessage);
-
     // NFR-02 fast-path: block write intent before invoking model/tools.
     if (isMutationIntent(safeMessage)) {
+      console.log("Processing message:", safeMessage, "| LLM: (skipped — read-only guard)");
       const startTime = Date.now();
       const refusalResponse =
         "I'm sorry, but I cannot perform that operation. Deleting, inserting, or modifying data is not permitted — this system only allows read-only SELECT queries for data safety.\n\n" +
@@ -251,6 +253,28 @@ export async function POST(request: Request) {
     const chatHistory = safeHistory
       .map((msg: ChatMessage) => convertToLangChainMessage(msg))
       .filter((msg: HumanMessage | AIMessage | null): msg is HumanMessage | AIMessage => msg !== null);
+
+    // Rehydrate agent config from the DB (user-scoped) if runtime is still on defaults.
+    // This ensures the saved provider/model is used after a server restart.
+    try {
+      const { provider: rp } = getRuntimeConfig();
+      const isDefault = !rp || rp === (process.env.LLM_PROVIDER ?? "google");
+      if (isDefault) {
+        const savedConfig = await getUserAgentConfig(userId);
+        if (savedConfig) {
+          setRuntimeModel(savedConfig.provider as ModelProvider, savedConfig.model);
+          if (savedConfig.api_key) {
+            setRuntimeApiKey(savedConfig.provider as ModelProvider, savedConfig.api_key);
+          }
+          resetAgent();
+        }
+      }
+    } catch (err) {
+      console.warn("[Chat] Could not rehydrate agent config:", err);
+    }
+
+    const { provider: llmProvider, model: llmModel } = getRuntimeConfig();
+    console.log("Processing message:", safeMessage, "| LLM:", `${llmProvider}/${llmModel}`);
 
     const messageContent = buildMessageContent(safeMessage);
 

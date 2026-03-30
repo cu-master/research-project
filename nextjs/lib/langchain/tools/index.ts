@@ -2,7 +2,6 @@
 import {
   listTablesTool,
   getTableSchemaTool,
-  getSampleQueriesTool,
 } from "./database-query-tools";
 import { obdaQueryWithOntopTool } from "./obda-query-tool";
 import { generateR2rmlMappingTool } from "./r2rml-mapping-tool";
@@ -10,6 +9,8 @@ import {
   answerQueryTool,
   summarizeContentTool,
   explainMappingTool,
+  compareSchemaMappingTool,
+  suggestQueriesTool,
 } from "./model-interpretation-tools";
 
 export const allTools = [
@@ -21,9 +22,10 @@ export const allTools = [
   answerQueryTool,
   summarizeContentTool,
   explainMappingTool,
+  compareSchemaMappingTool,
+  suggestQueriesTool,
   // Database query tools
   listTablesTool,
   getTableSchemaTool,
-  getSampleQueriesTool,
 ];
 

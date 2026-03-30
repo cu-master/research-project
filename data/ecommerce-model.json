@@ -1,0 +1,183 @@
+{
+    "ontologyName": "Basic E-Commerce Schema",
+    "version": "1.0",
+    "entities": {
+        "Customer": {
+            "description": "A registered user who can place orders.",
+            "properties": {
+                "customerId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "required": true
+                },
+                "firstName": {
+                    "type": "string",
+                    "required": true
+                },
+                "lastName": {
+                    "type": "string",
+                    "required": true
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email",
+                    "required": true
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "required": true
+                }
+            },
+            "relationships": {
+                "orders": "1-to-Many with Order entity"
+            }
+        },
+        "Category": {
+            "description": "A grouping for organizing products.",
+            "properties": {
+                "categoryId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "required": true
+                },
+                "name": {
+                    "type": "string",
+                    "required": true
+                },
+                "parentCategoryId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "required": false,
+                    "notes": "Used for sub-categories"
+                }
+            },
+            "relationships": {
+                "products": "1-to-Many with Product entity"
+            }
+        },
+        "Product": {
+            "description": "An individual item available for purchase.",
+            "properties": {
+                "productId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "required": true
+                },
+                "sku": {
+                    "type": "string",
+                    "required": true,
+                    "notes": "Stock Keeping Unit"
+                },
+                "title": {
+                    "type": "string",
+                    "required": true
+                },
+                "description": {
+                    "type": "string",
+                    "required": false
+                },
+                "price": {
+                    "type": "number",
+                    "format": "decimal",
+                    "required": true
+                },
+                "currency": {
+                    "type": "string",
+                    "default": "USD",
+                    "required": true
+                },
+                "stockQuantity": {
+                    "type": "integer",
+                    "required": true
+                },
+                "categoryId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "required": true
+                }
+            },
+            "relationships": {
+                "category": "Many-to-1 with Category entity"
+            }
+        },
+        "Order": {
+            "description": "A record of a customer's purchase.",
+            "properties": {
+                "orderId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "required": true
+                },
+                "customerId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "required": true
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "PENDING",
+                        "PROCESSING",
+                        "SHIPPED",
+                        "DELIVERED",
+                        "CANCELLED"
+                    ],
+                    "required": true
+                },
+                "totalAmount": {
+                    "type": "number",
+                    "format": "decimal",
+                    "required": true
+                },
+                "orderDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "required": true
+                },
+                "shippingAddress": {
+                    "type": "object",
+                    "required": true
+                }
+            },
+            "relationships": {
+                "customer": "Many-to-1 with Customer entity",
+                "orderItems": "1-to-Many with OrderItem entity"
+            }
+        },
+        "OrderItem": {
+            "description": "A line item within an order representing a specific product and quantity.",
+            "properties": {
+                "orderItemId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "required": true
+                },
+                "orderId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "required": true
+                },
+                "productId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "required": true
+                },
+                "quantity": {
+                    "type": "integer",
+                    "required": true,
+                    "minimum": 1
+                },
+                "unitPrice": {
+                    "type": "number",
+                    "format": "decimal",
+                    "required": true
+                }
+            },
+            "relationships": {
+                "order": "Many-to-1 with Order entity",
+                "product": "Many-to-1 with Product entity"
+            }
+        }
+    }
+}

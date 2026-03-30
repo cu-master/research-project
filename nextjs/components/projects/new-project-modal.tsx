@@ -44,6 +44,7 @@ export default function ProjectModal({
   project,
 }: ProjectModalProps) {
   const r2rmlFileInputRef = useRef<HTMLInputElement>(null);
+  const uploadFileInputRef = useRef<HTMLInputElement>(null);
   const isEditing = !!project;
 
   // Section 1: Project Name
@@ -64,6 +65,10 @@ export default function ProjectModal({
 
   // Fetched content state (merged plain text from all URLs)
   const [fetchedContent, setFetchedContent] = useState<string | null>(null);
+
+  // Uploaded files state
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; size: number }[]>([]);
+  const [uploadStatus, setUploadStatus] = useState("");
 
   // Form state
   const [isLoading, setIsLoading] = useState(false);
@@ -159,6 +164,8 @@ export default function ProjectModal({
         setSchemaData(null);
         setR2rmlMapping(null);
         setAlignmentResult(null);
+        setUploadedFiles([]);
+        setUploadStatus("");
       }
       setError("");
       setContentStatus("");
@@ -169,10 +176,52 @@ export default function ProjectModal({
       setMappingError("");
       setValidationResult(null);
       setFetchedContent(project?.content || null);
+      setUploadedFiles([]);
+      setUploadStatus("");
       // Note: schemaData is set inside the if/else branches above;
       // do NOT reset it here or it will overwrite the project value.
     }
   }, [isOpen, project]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setUploadStatus("");
+    setError("");
+
+    const readers = files.map(
+      (file) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(`--- ${file.name} ---\n${reader.result as string}`);
+          reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+          reader.readAsText(file);
+        })
+    );
+
+    Promise.all(readers)
+      .then((texts) => {
+        const combined = texts.join("\n\n");
+        setFetchedContent((prev) => (prev ? `${prev}\n\n${combined}` : combined));
+        setUploadedFiles((prev) => [
+          ...prev,
+          ...files.map((f) => ({ name: f.name, size: f.size })),
+        ]);
+        setUploadStatus(
+          `${files.length} file${files.length > 1 ? "s" : ""} loaded successfully.`
+        );
+        setAlignmentResult(null);
+        setAlignmentError("");
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to read files");
+      })
+      .finally(() => {
+        // Reset input so the same file can be re-uploaded
+        if (uploadFileInputRef.current) uploadFileInputRef.current.value = "";
+      });
+  };
 
   // Prevent Escape key from closing the modal
   useEffect(() => {
@@ -292,9 +341,11 @@ export default function ProjectModal({
         throw new Error(data.error || data.message || "Failed to fetch content");
       }
 
-      // Store the merged plain-text content for inclusion in the create/update payload
+      // Merge URL-fetched content with any previously uploaded file content
       if (data.mergedContent) {
-        setFetchedContent(data.mergedContent);
+        setFetchedContent((prev) =>
+          prev ? `${prev}\n\n${data.mergedContent}` : data.mergedContent
+        );
       }
 
       setContentStatus(data.message);
@@ -616,7 +667,7 @@ export default function ProjectModal({
                 2
               </div>
               <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                Data Sources
+                Domain Ontology
               </h3>
             </div>
             <p className="text-xs text-gray-500 mb-3">
@@ -646,7 +697,7 @@ export default function ProjectModal({
                   )}
                 </div>
               ))}
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
                   onClick={addUrlField}
@@ -685,26 +736,85 @@ export default function ProjectModal({
                     </>
                   )}
                 </button>
+
+                {/* File upload button */}
+                <input
+                  ref={uploadFileInputRef}
+                  type="file"
+                  accept=".txt,.md,.markdown,.json,.ttl"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+                <button
+                  type="button"
+                  onClick={() => uploadFileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100 transition-colors"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" />
+                  </svg>
+                  Upload File
+                </button>
               </div>
+
+              {/* Uploaded files list */}
+              {uploadedFiles.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {uploadedFiles.map((f, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-700 border border-violet-200"
+                    >
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      {f.name}
+                      <span className="text-violet-400">({(f.size / 1024).toFixed(1)} KB)</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {uploadStatus && (
+                <p className="text-xs text-violet-600 mt-1">{uploadStatus}</p>
+              )}
 
               {contentStatus && (
                 <p className="text-xs text-emerald-600 mt-1">{contentStatus}</p>
               )}
 
-              {/* Fetched content preview */}
-              {fetchedContent && (
+              {/* Fetched content — editable */}
+              {fetchedContent !== null && (
                 <div className="mt-3">
-                  <label className={labelClass}>
-                    Fetched Content
-                    <span className="ml-1.5 font-normal text-gray-400">
-                      ({fetchedContent.length.toLocaleString()} chars)
-                    </span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className={labelClass + " mb-0"}>
+                      Fetched Content
+                      <span className="ml-1.5 font-normal text-gray-400">
+                        ({fetchedContent.length.toLocaleString()} chars)
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFetchedContent(null);
+                        setUploadedFiles([]);
+                        setUploadStatus("");
+                        setContentStatus("");
+                        setAlignmentResult(null);
+                        setAlignmentError("");
+                      }}
+                      className="text-xs text-red-400 hover:text-red-600 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </div>
                   <textarea
-                    readOnly
                     value={fetchedContent}
+                    onChange={(e) => setFetchedContent(e.target.value)}
                     rows={8}
                     className={`${inputClass} resize-y font-mono text-xs leading-relaxed text-gray-700 bg-gray-50`}
+                    placeholder="Content will appear here after fetching URLs or uploading files. You can also type or paste content directly."
                   />
                 </div>
               )}
@@ -901,6 +1011,29 @@ export default function ProjectModal({
                   </>
                 )}
               </button>
+
+              {/* Download Schema — only visible once schema is fetched */}
+              {schemaData && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const json = JSON.stringify(schemaData, null, 2);
+                    const blob = new Blob([json], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${dbDatabase || "schema"}-schema.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download Schema
+                </button>
+              )}
 
               {connectionStatus && (
                 <p

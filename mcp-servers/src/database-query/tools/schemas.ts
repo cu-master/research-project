@@ -23,18 +23,6 @@ export const getTableSchemaSchema = z.object({
     .describe("ID of the database to use (uses default if not specified)"),
 });
 
-export const getSampleQueriesSchema = z.object({
-  tableName: z.string().optional().describe("Specific table for sample queries"),
-  queryType: z
-    .enum(["select", "insert", "update", "delete", "aggregate", "join", "all"])
-    .optional()
-    .describe("Type of queries to generate (default: all)"),
-  databaseId: z
-    .string()
-    .optional()
-    .describe("ID of the database to use (uses default if not specified)"),
-});
-
 // ============================================================================
 // OBDA Query Schema
 // ============================================================================

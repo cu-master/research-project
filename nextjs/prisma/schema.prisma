@@ -55,9 +55,10 @@ model User {
   updated_at         DateTime @default(now()) @updatedAt @db.Timestamptz(6)
   default_project_id String?  @db.Uuid
 
-  default_project Project?  @relation("DefaultProject", fields: [default_project_id], references: [id], onDelete: SetNull)
-  projects        Project[] @relation("UserProjects")
+  default_project Project?    @relation("DefaultProject", fields: [default_project_id], references: [id], onDelete: SetNull)
+  projects        Project[]   @relation("UserProjects")
   sessions        Session[]
+  agent_config    AgentConfig?
 
   @@map("users")
 }
@@ -93,4 +94,18 @@ model Message {
   session Session @relation(fields: [session_id], references: [id], onDelete: Cascade)
 
   @@map("messages")
+}
+
+model AgentConfig {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @unique @db.Uuid
+  provider   String   @db.Text
+  model      String   @db.Text
+  api_key    String?  @db.Text
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("agent_configs")
 }
