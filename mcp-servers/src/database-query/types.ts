@@ -71,9 +71,11 @@ export interface AppConfig {
   anthropicKey: string | undefined;
   googleKey: string | undefined;
   groqKey: string | undefined;
+  openaiKey: string | undefined;
   anthropicModel: string;
   googleModel: string;
   groqModel: string;
+  openaiModel: string;
   port: number;
   ontopSparqlUrl: string;
   ontopInputDir: string;

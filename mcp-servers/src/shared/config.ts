@@ -38,9 +38,11 @@ export function createLLMConfig(overrides?: Partial<LLMConfig>): LLMConfig {
     anthropicKey: process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY,
     googleKey: process.env.GOOGLE_API_KEY,
     groqKey: process.env.GROQ_API_KEY,
+    openaiKey: process.env.OPENAI_API_KEY,
     anthropicModel: process.env.ANTHROPIC_MODEL || "claude-3-haiku-20240307",
     googleModel: process.env.GOOGLE_MODEL || "gemini-1.5-flash",
     groqModel: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+    openaiModel: process.env.OPENAI_MODEL || "gpt-4o-mini",
     ...overrides,
   };
 }

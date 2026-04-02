@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSidebar } from "./sidebar-context";
 import { useSession } from "./session-context";
 import { useSession as useAuthSession, signOut } from "next-auth/react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 export default function Sidebar() {
@@ -24,6 +24,10 @@ export default function Sidebar() {
 
   const userName = authSession?.user?.name || authSession?.user?.email?.split("@")[0] || "User";
   const userInitial = userName.charAt(0).toUpperCase();
+
+  // Track which sessions the user actually sent messages in during this page session.
+  // Prevents handleNewChat from archiving sessions the user was merely viewing.
+  const sessionsWithActivity = useRef(new Set<string>());
 
   const handleNewChat = async () => {
     // Check for unsaved work
@@ -46,8 +50,9 @@ export default function Sidebar() {
       try {
         let shouldRefreshSessions = false;
 
-        // Archive current session only if it exists, is active (not already archived), and has messages
-        if (sessionIdToArchive) {
+        // Archive current session only if the user actually sent messages in it
+        // (not if they were merely viewing an old session from history)
+        if (sessionIdToArchive && sessionsWithActivity.current.has(sessionIdToArchive)) {
           const sessionResponse = await fetch(`/api/sessions?sessionId=${sessionIdToArchive}`);
           if (sessionResponse.ok) {
             const sessionData = await sessionResponse.json();
@@ -63,6 +68,7 @@ export default function Sidebar() {
               shouldRefreshSessions = true;
             }
           }
+          sessionsWithActivity.current.delete(sessionIdToArchive);
         }
 
         // Clear the model interpretation store
@@ -117,8 +123,11 @@ export default function Sidebar() {
 
   // Listen for session update events from chat surface
   useEffect(() => {
-    const handleSessionUpdate = () => {
-      // Refresh sessions when a new message is sent
+    const handleSessionUpdate = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail?.sessionId) {
+        sessionsWithActivity.current.add(detail.sessionId);
+      }
       loadAllSessions();
     };
 
@@ -295,7 +304,7 @@ export default function Sidebar() {
           ))}
 
           {/* Show archived sessions */}
-          {archivedSessions.slice(0, 10).map((session) => (
+          {archivedSessions.map((session) => (
             <div
               key={session.id}
               className={`group flex items-center gap-1 rounded-lg transition-colors ${currentSessionId === session.id

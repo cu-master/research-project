@@ -19,7 +19,8 @@ It computes:
 ## Files
 
 - `dvd-rental-cases.json`: Default benchmark cases used by `npm run benchmark:ai-accuracy`.
-- `cases.json`: Alternative benchmark case set (can be selected with `--cases`).
+- `dvd-rental-cases-small-experiment.json`: Smaller DVD Rental case set for quicker experiments.
+- `moma-test-cases.json`: MOMA benchmark case set.
 - `config.json`: Endpoint defaults and threshold settings.
 - `results/<timestamp>/`: Generated artifacts from each benchmark run.
 
@@ -55,6 +56,8 @@ npm run benchmark:ai-accuracy:report
 
 - `--base-url http://localhost:3000`
 - `--cases benchmarks/ai-accuracy/dvd-rental-cases.json`
+- `--cases benchmarks/ai-accuracy/dvd-rental-cases-small-experiment.json` (smaller run)
+- `--cases benchmarks/ai-accuracy/moma-test-cases.json` (MOMA cases)
 - `--case-id P02` (run one case by ID from the selected cases file)
 - `--config benchmarks/ai-accuracy/config.json`
 - `--cookie "next-auth.session-token=..."`

@@ -17,6 +17,7 @@ const llmConfig = createLLMConfig({
   ...(process.env.DB_GOOGLE_MODEL    && { googleModel:    process.env.DB_GOOGLE_MODEL }),
   ...(process.env.DB_ANTHROPIC_MODEL && { anthropicModel: process.env.DB_ANTHROPIC_MODEL }),
   ...(process.env.DB_GROQ_MODEL      && { groqModel:      process.env.DB_GROQ_MODEL }),
+  ...(process.env.DB_OPENAI_MODEL    && { openaiModel:    process.env.DB_OPENAI_MODEL }),
 });
 
 const defaultProjectRoot = path.resolve(__dirname, "..", "..", "..");

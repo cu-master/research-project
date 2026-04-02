@@ -578,6 +578,7 @@ const COLUMN_KEY_ALIAS_GROUPS: string[][] = [
   ["rental_price", "rental_rate", "price"],
   ["first_name", "customer_first_name"],
   ["category_name", "movie_category"],
+  ["name", "full_name", "artist_name"],
 ];
 
 function canonicalColumnKey(normalizedKey: string): string {

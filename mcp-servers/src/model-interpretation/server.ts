@@ -141,8 +141,18 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 export function startServer(): void {
   app.listen(config.port, () => {
+    const activeModel =
+      config.provider === "anthropic"
+        ? config.anthropicModel
+        : config.provider === "groq"
+          ? config.groqModel
+          : config.provider === "openai"
+            ? config.openaiModel
+            : config.googleModel;
+
     console.log(`Server running on http://localhost:${config.port}`);
-    console.log(`AI Provider: ${config.provider}\n`);
+    console.log(`AI Provider: ${config.provider}`);
+    console.log(`LLM Model: ${activeModel}\n`);
     console.log(`Available endpoints:`);
     console.log(`  GET  /health - Health check`);
     console.log(`  GET  /tools - List all tools`);

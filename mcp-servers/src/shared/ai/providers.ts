@@ -155,6 +155,83 @@ async function callGroq(
   return text;
 }
 
+async function callOpenAI(
+  config: LLMConfig,
+  prompt: string,
+  maxTokens: number,
+  temperature: number
+): Promise<string> {
+  if (!config.openaiKey) {
+    throw new Error("OPENAI_API_KEY environment variable is required.");
+  }
+
+  const basePayload = {
+    model: config.openaiModel,
+    messages: [{ role: "user" as const, content: prompt }],
+    temperature,
+  };
+
+  // Newer OpenAI models (including GPT-5 family) expect max_completion_tokens.
+  // Keep a fallback to max_tokens for older compatibility.
+  let response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.openaiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      ...basePayload,
+      max_completion_tokens: maxTokens,
+    }),
+  });
+
+  if (!response.ok) {
+    const firstErrorBody = await response.text();
+    const shouldRetryWithLegacyMaxTokens =
+      response.status === 400 &&
+      firstErrorBody.includes("max_completion_tokens") &&
+      firstErrorBody.includes("Use 'max_tokens' instead");
+
+    if (!shouldRetryWithLegacyMaxTokens) {
+      throw new Error(
+        `OpenAI API request failed with HTTP ${response.status}: ${firstErrorBody}`
+      );
+    }
+
+    response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.openaiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...basePayload,
+        max_tokens: maxTokens,
+      }),
+    });
+  }
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(
+      `OpenAI API request failed with HTTP ${response.status}: ${errorBody}`
+    );
+  }
+
+  const data = (await response.json()) as {
+    choices?: Array<{
+      message?: { content?: string };
+      finish_reason?: string;
+    }>;
+  };
+
+  const text = data.choices?.[0]?.message?.content;
+  if (!text || !text.trim()) {
+    return "Unexpected response structure from OpenAI API.";
+  }
+  return text;
+}
+
 // ============================================================================
 // AI Provider Factory
 // ============================================================================
@@ -180,6 +257,9 @@ export function createAICaller(config: LLMConfig) {
     }
     if (config.provider === "groq") {
       return callGroq(config, prompt, maxTokens, temperature);
+    }
+    if (config.provider === "openai") {
+      return callOpenAI(config, prompt, maxTokens, temperature);
     }
     return callAnthropic(config, prompt, maxTokens, temperature);
   };

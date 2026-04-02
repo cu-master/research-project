@@ -19,16 +19,18 @@ export interface ToolDefinition {
 // LLM Configuration Types
 // ============================================================================
 
-export type LLMProvider = "anthropic" | "google" | "groq";
+export type LLMProvider = "anthropic" | "google" | "groq" | "openai";
 
 export interface LLMConfig {
   provider: LLMProvider;
   anthropicKey: string | undefined;
   googleKey: string | undefined;
   groqKey: string | undefined;
+  openaiKey: string | undefined;
   anthropicModel: string;
   googleModel: string;
   groqModel: string;
+  openaiModel: string;
 }
 
 export interface BaseAppConfig extends LLMConfig {

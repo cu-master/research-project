@@ -92,11 +92,12 @@ export const generateR2rmlMappingTool = tool(
     ontologyContent,
     dbSchema,
   }: z.infer<typeof generateR2rmlMappingSchema>) => {
-    const model = createModel({
-      provider: "openai",
-      model: "gpt-5.2",
-      temperature: 0,
-    });
+    // const model = createModel({
+    //   provider: "anthropic",
+    //   model: "claude-sonnet-4-6",
+    //   temperature: 0,
+    // });
+    const model = createModel({});
 
     const messages = [
       new SystemMessage(R2RML_SYSTEM_PROMPT),

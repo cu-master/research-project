@@ -175,7 +175,8 @@ export default function ProjectModal({
       setIsCheckingAlignment(false);
       setMappingError("");
       setValidationResult(null);
-      setFetchedContent(project?.content || null);
+      // Keep empty string (cleared state) so the UI matches what was saved.
+      setFetchedContent(project?.content ?? null);
       setUploadedFiles([]);
       setUploadStatus("");
       // Note: schemaData is set inside the if/else branches above;
@@ -528,6 +529,29 @@ export default function ProjectModal({
     }
   };
 
+  const handleDownloadR2rmlMapping = () => {
+    if (!r2rmlMapping) return;
+
+    const blob = new Blob([r2rmlMapping], { type: "text/turtle; charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const safeBase =
+      (name && name.trim().length > 0 ? name : "r2rml-mapping")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9-_]+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${safeBase || "r2rml-mapping"}.ttl`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -553,7 +577,8 @@ export default function ProjectModal({
     };
 
     // Include fetched content (merged plain text) if available
-    if (fetchedContent) {
+    // Important: send empty string too, otherwise the server keeps the previous DB value.
+    if (fetchedContent !== null) {
       payload.content = fetchedContent;
     }
 
@@ -797,7 +822,8 @@ export default function ProjectModal({
                     <button
                       type="button"
                       onClick={() => {
-                        setFetchedContent(null);
+                        // Persist a cleared state by saving an empty string.
+                        setFetchedContent("");
                         setUploadedFiles([]);
                         setUploadStatus("");
                         setContentStatus("");
@@ -1386,6 +1412,25 @@ export default function ProjectModal({
                 </svg>
                 Upload R2RML
               </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadR2rmlMapping}
+                  disabled={!r2rmlMapping?.trim()}
+                  className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Download the current R2RML mapping as a .ttl file"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"
+                    />
+                  </svg>
+                  Download mapping
+                </button>
+
               <input
                 ref={r2rmlFileInputRef}
                 type="file"
