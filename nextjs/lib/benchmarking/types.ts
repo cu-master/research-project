@@ -1,18 +1,9 @@
 export type BenchmarkCaseCategory = "positive" | "negative";
 
-export type BenchmarkCaseSubtype =
-  | "simple_retrieval"
-  | "complex_join"
-  | "aggregation"
-  | "complex_aggregation"
-  | "filtering"
-  | "out_of_scope"
-  | "mutation_attempt"
-  | "injection_attempt"
-  | "ambiguous_query"
-  | "nonexistent_entity";
+/** Report label only; any non-empty string is accepted when parsing case JSON. */
+export type BenchmarkCaseSubtype = string;
 
-export type BenchmarkExpectedBehavior = "sql" | "refusal";
+export type BenchmarkExpectedBehavior = "sql" | "refusal" | "clarification";
 
 export interface BenchmarkExpectation {
   behavior: BenchmarkExpectedBehavior;
@@ -21,6 +12,8 @@ export interface BenchmarkExpectation {
   expectedResultSignature?: string;
   expectedTools?: string[];
   maxToolCalls?: number;
+  /** Documented intent; ignored by the evaluator. */
+  notes?: string;
 }
 
 export interface BenchmarkCase {
@@ -30,6 +23,8 @@ export interface BenchmarkCase {
   prompt: string;
   repeat: number;
   expectation: BenchmarkExpectation;
+  entity?: string | null;
+  mappedTable?: string | null;
 }
 
 export interface BenchmarkConfig {

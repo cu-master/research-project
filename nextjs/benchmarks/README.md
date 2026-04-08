@@ -18,9 +18,10 @@ It computes:
 
 ## Files
 
-- `dvd-rental-cases.json`: Default benchmark cases used by `npm run benchmark:ai-accuracy`.
+- `dvd-rental-test-cases.json`: Default benchmark cases used by `npm run benchmark:ai-accuracy`.
 - `dvd-rental-cases-small-experiment.json`: Smaller DVD Rental case set for quicker experiments.
 - `moma-test-cases.json`: MOMA benchmark case set.
+- `airlines-test-cases.json`: Airlines benchmark case set.
 - `config.json`: Endpoint defaults and threshold settings.
 - `results/<timestamp>/`: Generated artifacts from each benchmark run.
 
@@ -55,11 +56,12 @@ npm run benchmark:ai-accuracy:report
 ## Optional CLI Flags
 
 - `--base-url http://localhost:3000`
-- `--cases benchmarks/ai-accuracy/dvd-rental-cases.json`
-- `--cases benchmarks/ai-accuracy/dvd-rental-cases-small-experiment.json` (smaller run)
-- `--cases benchmarks/ai-accuracy/moma-test-cases.json` (MOMA cases)
+- `--cases benchmarks/dvd-rental-test-cases.json`
+- `--cases benchmarks/dvd-rental-cases-small-experiment.json` (smaller run)
+- `--cases benchmarks/moma-test-cases.json` (MOMA cases)
+- `--cases benchmarks/airlines-test-cases.json` (Airlines cases)
 - `--case-id P02` (run one case by ID from the selected cases file)
-- `--config benchmarks/ai-accuracy/config.json`
+- `--config benchmarks/config.json`
 - `--cookie "next-auth.session-token=..."`
 - `--delay-ms 250`
 - `--concurrency 2` (prints a warning: parallel runs share one auth cookie)

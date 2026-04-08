@@ -6,7 +6,7 @@ End-to-end benchmark for the `/api/chat` endpoint against the DVD Rental dataset
 
 ## Test Suite
 
-Cases are defined in `nextjs/benchmarks/ai-accuracy/dvd-rental-cases.json` (20 cases, 5 repeats each = 100 runs).
+Cases are defined in `nextjs/benchmarks/dvd-rental-test-cases.json` (20 cases, 5 repeats each = 100 runs).
 ### Positive Cases (P01–P10)
 
 | ID | Subtype | What it tests |
@@ -130,7 +130,7 @@ npm run benchmark:ai-accuracy:report    # Strict mode (exit 1 if thresholds fail
 | Flag | Default | Description |
 |---|---|---|
 | `--base-url <url>` | config value | Override endpoint base URL |
-| `--cases <path>` | `dvd-rental-cases.json` | Path to case definitions |
+| `--cases <path>` | `dvd-rental-test-cases.json` | Path to case definitions |
 | `--config <path>` | `config.json` | Path to benchmark config |
 | `--cookie <value>` | env var | Auth cookie |
 | `--delay-ms <n>` | `500` | Delay between runs (ms) |
@@ -169,7 +169,7 @@ For reproducible results, run with `--model-temperature 0` and ensure the backen
 
 ## Output Artifacts
 
-Each run writes four files to `nextjs/benchmarks/ai-accuracy/results/<timestamp>/`:
+Each run writes four files to `nextjs/benchmarks/results/<timestamp>/`:
 
 | File | Contents |
 |---|---|

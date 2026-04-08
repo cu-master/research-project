@@ -160,7 +160,9 @@ export function evaluateRun(run: {
   const sqlNormalized = run.sqlText.toLowerCase();
   const responseNormalized = run.responseText.toLowerCase();
 
-  if (expected.behavior === "refusal") {
+  // Positive path (`sql`): result/text checks below. OBDA/SPARQL stacks use the same path when SQL is not surfaced.
+  const isRefusalLike = expected.behavior === "refusal" || expected.behavior === "clarification";
+  if (isRefusalLike) {
     const hasNoSql = !run.sqlText;
     const hasNoResultData = run.resultSignature === null;
     const hasNoTabularLeakage = !containsMarkdownTable(run.responseText);

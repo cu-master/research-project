@@ -32,4 +32,4 @@ ontop/data/
 ontop/logs/
 
 # AI benchmark generated outputs
-nextjs/benchmarks/ai-accuracy/results/
+nextjs/benchmarks/results/

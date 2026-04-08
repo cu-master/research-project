@@ -279,6 +279,28 @@ describe("evaluateRun", () => {
     expect(pass).toBe(true);
   });
 
+  it("treats clarification like refusal for negative evaluation", () => {
+    const benchmarkCase = buildCase({
+      id: "N_CLARIFY",
+      category: "negative",
+      subtype: "ambiguous_query",
+      expectation: {
+        behavior: "clarification",
+        responseMustContain: ["which", "clarify"],
+        maxToolCalls: 0,
+      },
+    });
+    const pass = evaluateRun({
+      benchmarkCase,
+      responseText: "Which dataset or fields should I query? Please clarify.",
+      sqlText: "",
+      resultSignature: null,
+      responseSuccess: false,
+      toolCallCount: 0,
+    });
+    expect(pass).toBe(true);
+  });
+
   it("passes refusal case with refusal language and no leaked result", () => {
     const benchmarkCase = buildCase({
       id: "N_TEST",

@@ -133,7 +133,7 @@ async function main(): Promise<void> {
 
   const outputDir = path.join(
     projectRoot,
-    "benchmarks/ai-accuracy/results",
+    "benchmarks/results",
     new Date().toISOString().replace(/[:.]/g, "-")
   );
   await mkdir(outputDir, { recursive: true });
@@ -270,7 +270,7 @@ function formatZodError(label: string, error: unknown): string {
 async function loadConfig(configPathArg?: string): Promise<BenchmarkConfig> {
   const configPath =
     configPathArg ??
-    path.join(projectRoot, "benchmarks/ai-accuracy/config.json");
+    path.join(projectRoot, "benchmarks/config.json");
   const configRaw = await readFile(configPath, "utf8");
   let parsed: unknown;
   try {
@@ -288,7 +288,7 @@ async function loadConfig(configPathArg?: string): Promise<BenchmarkConfig> {
 async function loadCases(casesPathArg?: string): Promise<BenchmarkCase[]> {
   const casesPath =
     casesPathArg ??
-    path.join(projectRoot, "benchmarks/ai-accuracy/dvd-rental-cases.json");
+    path.join(projectRoot, "benchmarks/dvd-rental-test-cases.json");
   const casesRaw = await readFile(casesPath, "utf8");
   let parsed: unknown;
   try {

@@ -2,38 +2,42 @@ import { z } from "zod";
 
 const benchmarkCaseCategorySchema = z.enum(["positive", "negative"]);
 
-const benchmarkCaseSubtypeSchema = z.enum([
-  "simple_retrieval",
-  "complex_join",
-  "aggregation",
-  "complex_aggregation",
-  "filtering",
-  "out_of_scope",
-  "mutation_attempt",
-  "injection_attempt",
-  "ambiguous_query",
-  "nonexistent_entity",
+/** Free-form label for reports and filtering; new case files can introduce values without schema edits. */
+const benchmarkCaseSubtypeSchema = z.string().min(1);
+
+const benchmarkExpectedBehaviorSchema = z.enum([
+  "sql",
+  "refusal",
+  /** Negative: model asks for clarification instead of returning data (same gates as refusal). */
+  "clarification",
 ]);
 
-const benchmarkExpectedBehaviorSchema = z.enum(["sql", "refusal"]);
+const benchmarkExpectationSchema = z
+  .object({
+    behavior: benchmarkExpectedBehaviorSchema,
+    sqlMustNotContain: z.array(z.string()).optional(),
+    responseMustContain: z.array(z.string()).optional(),
+    expectedResultSignature: z.string().optional(),
+    expectedTools: z.array(z.string()).optional(),
+    maxToolCalls: z.number().int().nonnegative().optional(),
+    /** Human-readable intent; ignored by the evaluator. */
+    notes: z.string().optional(),
+  })
+  .passthrough();
 
-const benchmarkExpectationSchema = z.object({
-  behavior: benchmarkExpectedBehaviorSchema,
-  sqlMustNotContain: z.array(z.string()).optional(),
-  responseMustContain: z.array(z.string()).optional(),
-  expectedResultSignature: z.string().optional(),
-  expectedTools: z.array(z.string()).optional(),
-  maxToolCalls: z.number().int().nonnegative().optional(),
-});
-
-export const benchmarkCaseSchema = z.object({
-  id: z.string().min(1),
-  category: benchmarkCaseCategorySchema,
-  subtype: benchmarkCaseSubtypeSchema,
-  prompt: z.string().min(1),
-  repeat: z.number().int().min(1).max(100),
-  expectation: benchmarkExpectationSchema,
-});
+export const benchmarkCaseSchema = z
+  .object({
+    id: z.string().min(1),
+    category: benchmarkCaseCategorySchema,
+    subtype: benchmarkCaseSubtypeSchema,
+    prompt: z.string().min(1),
+    repeat: z.number().int().min(1).max(100),
+    expectation: benchmarkExpectationSchema,
+    /** Optional dataset documentation; ignored by the evaluator. */
+    entity: z.union([z.string(), z.null()]).optional(),
+    mappedTable: z.union([z.string(), z.null()]).optional(),
+  })
+  .passthrough();
 
 export const benchmarkConfigSchema = z
   .object({

@@ -6,9 +6,10 @@ This folder contains three kinds of artifacts:
 
 JSON files used as `--cases <path>` fixtures for `npm run benchmark:ai-accuracy`.
 
-- `dvd-rental-cases.json`: Default benchmark cases (DVD Rental)
+- `dvd-rental-test-cases.json`: Default benchmark cases (DVD Rental)
 - `dvd-rental-cases-small-experiment.json`: Smaller DVD Rental set for faster iterations
 - `moma-test-cases.json`: MOMA benchmark cases
+- `airlines-test-cases.json`: Airlines benchmark cases
 
 ## 2. Runner configuration
 
@@ -24,6 +25,6 @@ JSON files used as `--cases <path>` fixtures for `npm run benchmark:ai-accuracy`
 
 Notes:
 
-- `nextjs/benchmarks/ai-accuracy/results/` is gitignored by `.gitignore` (generated output).
+- `nextjs/benchmarks/results/` is gitignored by `.gitignore` (generated output).
 - If you ever move fixtures/config into subfolders, update `nextjs/scripts/run-ai-accuracy-benchmark.ts` and the README CLI examples accordingly.
 
