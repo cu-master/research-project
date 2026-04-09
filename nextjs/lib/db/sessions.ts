@@ -2,8 +2,6 @@ import prisma from "./prisma";
 import { Prisma } from "@prisma/client";
 import type { Session, Message } from "@prisma/client";
 
-export type { Session, Message };
-
 /**
  * Create a new chat session for a specific user
  */

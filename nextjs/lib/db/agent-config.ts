@@ -1,7 +1,6 @@
 import prisma from "./prisma";
-import { Prisma } from "@prisma/client";
 
-export interface AgentConfigData {
+interface AgentConfigData {
   provider: string;
   model: string;
   /** Optional API key override — stored per user, takes priority over .env */

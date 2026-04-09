@@ -1,6 +1,5 @@
 import { createAgent } from "langchain";
-import { createModel, setRuntimeModel } from "./model";
-import type { ModelProvider } from "./types";
+import { createModel } from "./model";
 import { allTools } from "./tools";
 
 const SYSTEM_PROMPT = `You are an AI assistant with tools for data analysis, database queries, OBDA (Ontology-Based Data Access), and conceptual-to-physical mapping.
@@ -93,12 +92,6 @@ let agentInstance: Awaited<ReturnType<typeof createAgent>> | null = null;
 /** Invalidate the cached agent — called after provider/model changes */
 export function resetAgent() {
   agentInstance = null;
-}
-
-/** Update the runtime model then invalidate the agent so next call rebuilds */
-export function setAgentConfig(provider: ModelProvider, model: string) {
-  setRuntimeModel(provider, model);
-  resetAgent();
 }
 
 export async function getAgent() {

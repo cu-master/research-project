@@ -1,6 +1,6 @@
 import type { ModelProvider } from "@/lib/langchain/types";
 
-export const FALLBACK_MODELS: Record<ModelProvider, { value: string; label: string }[]> = {
+const FALLBACK_MODELS: Record<ModelProvider, { value: string; label: string }[]> = {
   google: [
     { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
@@ -24,9 +24,9 @@ export const FALLBACK_MODELS: Record<ModelProvider, { value: string; label: stri
   ],
 };
 
-export type ListModelsSource = "api" | "fallback";
+type ListModelsSource = "api" | "fallback";
 
-export interface ListModelsResult {
+interface ListModelsResult {
   models: { value: string; label: string }[];
   source: ListModelsSource;
   /** Present when source is fallback due to error or empty API response */

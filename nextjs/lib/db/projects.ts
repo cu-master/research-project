@@ -2,8 +2,6 @@ import prisma from "./prisma";
 import { Prisma } from "@prisma/client";
 import type { Project } from "@prisma/client";
 
-export type { Project };
-
 export interface CreateProjectInput {
   name: string;
   urls?: any;

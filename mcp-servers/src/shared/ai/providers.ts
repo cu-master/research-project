@@ -236,7 +236,7 @@ async function callOpenAI(
 // AI Provider Factory
 // ============================================================================
 
-export interface CallAIOptions {
+interface CallAIOptions {
   maxTokens?: number;
   temperature?: number;
 }

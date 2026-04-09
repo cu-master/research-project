@@ -5,7 +5,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import type { ModelProvider } from "./types";
 import { LLM_PROVIDER } from "./config";
 
-export interface CreateModelOptions {
+interface CreateModelOptions {
   provider?: ModelProvider;
   model?: string;
   temperature?: number;

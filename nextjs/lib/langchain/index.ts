@@ -1,7 +1,6 @@
 // Types
 export type {
   ChatMessage,
-  Attachment,
 } from "./types";
 
 // Utility functions

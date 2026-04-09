@@ -2,8 +2,6 @@ import prisma from "./prisma";
 import bcrypt from "bcryptjs";
 import type { User } from "@prisma/client";
 
-export type { User };
-
 /**
  * Create a new user with hashed password
  */

@@ -1,7 +1,7 @@
 import { createModel } from "../model";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
-export interface AlignmentResult {
+interface AlignmentResult {
   score: number;
   ontologyDomain: string;
   databaseDomain: string;

@@ -25,7 +25,7 @@ const benchmarkExpectationSchema = z
   })
   .passthrough();
 
-export const benchmarkCaseSchema = z
+const benchmarkCaseSchema = z
   .object({
     id: z.string().min(1),
     category: benchmarkCaseCategorySchema,
@@ -39,7 +39,7 @@ export const benchmarkCaseSchema = z
   })
   .passthrough();
 
-export const benchmarkConfigSchema = z
+const benchmarkConfigSchema = z
   .object({
     // Allow localhost and dev URLs without tripping strict URL parsing in all environments.
     baseUrl: z.string().min(1),
@@ -58,8 +58,8 @@ export const benchmarkConfigSchema = z
   })
   .strict();
 
-export type ParsedBenchmarkConfig = z.infer<typeof benchmarkConfigSchema>;
-export type ParsedBenchmarkCase = z.infer<typeof benchmarkCaseSchema>;
+type ParsedBenchmarkConfig = z.infer<typeof benchmarkConfigSchema>;
+type ParsedBenchmarkCase = z.infer<typeof benchmarkCaseSchema>;
 
 export function parseBenchmarkConfig(raw: unknown): ParsedBenchmarkConfig {
   return benchmarkConfigSchema.parse(raw);

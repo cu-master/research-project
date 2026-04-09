@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
-export type LangChainRequestContext = {
+type LangChainRequestContext = {
   sessionId?: string;
   projectId?: string;
   userId?: string;
