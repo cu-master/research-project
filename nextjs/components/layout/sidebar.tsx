@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSidebar } from "./sidebar-context";
 import { useSession } from "./session-context";
 import { useSession as useAuthSession, signOut } from "next-auth/react";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 
 export default function Sidebar() {
@@ -25,9 +25,32 @@ export default function Sidebar() {
   const userName = authSession?.user?.name || authSession?.user?.email?.split("@")[0] || "User";
   const userInitial = userName.charAt(0).toUpperCase();
 
+  // Merge active + archived into one list sorted by most recent activity.
+  // For archived sessions, use the later of updated_at and archived_at so
+  // a just-archived session stays at the top.
+  const allSessions = useMemo(() => {
+    const merged = [...activeSessions, ...archivedSessions];
+    merged.sort((a, b) => {
+      const timeA = Math.max(
+        new Date(a.updated_at).getTime(),
+        a.archived_at ? new Date(a.archived_at).getTime() : 0
+      );
+      const timeB = Math.max(
+        new Date(b.updated_at).getTime(),
+        b.archived_at ? new Date(b.archived_at).getTime() : 0
+      );
+      return timeB - timeA;
+    });
+    return merged;
+  }, [activeSessions, archivedSessions]);
+
   // Track which sessions the user actually sent messages in during this page session.
   // Prevents handleNewChat from archiving sessions the user was merely viewing.
   const sessionsWithActivity = useRef(new Set<string>());
+
+  // AbortController ref to cancel in-flight loadAllSessions fetches,
+  // preventing stale responses from overwriting newer data.
+  const loadAbortRef = useRef<AbortController | null>(null);
 
   const handleNewChat = async () => {
     // Check for unsaved work
@@ -84,23 +107,30 @@ export default function Sidebar() {
     })();
   };
 
-  // Load both active and archived sessions
+  // Load both active and archived sessions.
+  // Cancels any in-flight request so only the latest response is applied.
   const loadAllSessions = useCallback(async () => {
-    try {
-      // Load active sessions
-      const activeResponse = await fetch("/api/sessions?type=active");
-      if (activeResponse.ok) {
-        const activeData = await activeResponse.json();
-        setActiveSessions(activeData.sessions || []);
-      }
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
 
-      // Load archived sessions
-      const archivedResponse = await fetch("/api/sessions?type=archived");
-      if (archivedResponse.ok) {
-        const archivedData = await archivedResponse.json();
-        setArchivedSessions(archivedData.sessions || []);
-      }
+    try {
+      const [activeResponse, archivedResponse] = await Promise.all([
+        fetch("/api/sessions?type=active", { signal: controller.signal }),
+        fetch("/api/sessions?type=archived", { signal: controller.signal }),
+      ]);
+
+      if (controller.signal.aborted) return;
+
+      const activeData = activeResponse.ok ? await activeResponse.json() : null;
+      const archivedData = archivedResponse.ok ? await archivedResponse.json() : null;
+
+      if (controller.signal.aborted) return;
+
+      if (activeData) setActiveSessions(activeData.sessions || []);
+      if (archivedData) setArchivedSessions(archivedData.sessions || []);
     } catch (error) {
+      if ((error as Error).name === "AbortError") return;
       console.error("Failed to load sessions:", error);
     }
   }, []);
@@ -261,14 +291,13 @@ export default function Sidebar() {
 
       {/* Chat history */}
       <div className="flex-1 overflow-y-auto px-2 py-2">
-        {!isCollapsed && (activeSessions.length > 0 || archivedSessions.length > 0) && (
+        {!isCollapsed && allSessions.length > 0 && (
           <div className="mb-4 px-2 text-xs font-semibold text-gray-500">
             Your Chats
           </div>
         )}
         <div className="flex flex-col gap-1">
-          {/* Show active sessions first */}
-          {activeSessions.map((session) => (
+          {allSessions.map((session) => (
             <div
               key={session.id}
               className={`group flex items-center gap-1 rounded-lg transition-colors ${currentSessionId === session.id
@@ -303,43 +332,7 @@ export default function Sidebar() {
             </div>
           ))}
 
-          {/* Show archived sessions */}
-          {archivedSessions.map((session) => (
-            <div
-              key={session.id}
-              className={`group flex items-center gap-1 rounded-lg transition-colors ${currentSessionId === session.id
-                  ? "bg-gray-200/70"
-                  : "hover:bg-gray-200/50"
-                }`}
-            >
-              <button
-                onClick={() => handleSessionClick(session.id)}
-                className={`flex flex-1 items-center rounded-lg px-3 py-2.5 text-sm text-gray-700 hover:text-gray-900 min-w-0 ${isCollapsed ? "justify-center" : ""
-                  } ${currentSessionId === session.id
-                    ? "font-medium"
-                    : ""
-                  }`}
-                title={session.title || "Untitled Chat"}
-              >
-                {!isCollapsed && (
-                  <span className="truncate min-w-0">
-                    {session.title || "Untitled Chat"}
-                  </span>
-                )}
-              </button>
-              {!isCollapsed && (
-                <button
-                  onClick={(e) => handleDeleteClick(e, session.id)}
-                  className="flex items-center justify-center rounded-lg p-2 text-gray-400 opacity-0 transition-opacity hover:bg-gray-300/50 hover:text-red-600 group-hover:opacity-100"
-                  title="Delete chat"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          ))}
-
-          {activeSessions.length === 0 && archivedSessions.length === 0 && !isCollapsed && (
+          {allSessions.length === 0 && !isCollapsed && (
             <div className="px-3 py-2 text-xs text-gray-400">
               No chat history yet
             </div>

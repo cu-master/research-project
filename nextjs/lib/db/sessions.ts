@@ -90,7 +90,7 @@ export async function getArchivedSessions(limit: number = 50, userId?: string): 
 
   const result = await prisma.session.findMany({
     where,
-    orderBy: { archived_at: 'desc' },
+    orderBy: [{ archived_at: 'desc' }, { id: 'desc' }],
     take: limit
   });
   return result;
@@ -107,7 +107,7 @@ export async function getActiveSessions(limit: number = 50, userId?: string): Pr
 
   const result = await prisma.session.findMany({
     where,
-    orderBy: { updated_at: 'desc' },
+    orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
     take: limit
   });
   return result;

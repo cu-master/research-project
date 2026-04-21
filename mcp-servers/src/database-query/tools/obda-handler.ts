@@ -69,13 +69,13 @@ async function writeOntopConfig(
 
 async function restartOntopContainer(): Promise<void> {
   try {
-    await execAsync("docker compose restart ontop", {
+    await execAsync("docker compose up -d --force-recreate ontop", {
       cwd: config.projectRoot,
     });
-    console.log("[Ontop] Container restarted");
+    console.log("[Ontop] Container recreated");
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to restart Ontop container: ${msg}`);
+    throw new Error(`Failed to recreate Ontop container: ${msg}`);
   }
 }
 
