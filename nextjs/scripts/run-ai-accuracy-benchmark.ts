@@ -62,7 +62,7 @@ async function main(): Promise<void> {
 
   if (!cookie) {
     throw new Error(
-      "Missing auth cookie. Set BENCHMARK_AUTH_COOKIE in nextjs/.env or shell env, or pass --cookie to call /api/chat as an authenticated user."
+      "Missing auth cookie. Set BENCHMARK_AUTH_COOKIE in nextjs/.env.benchmark (or nextjs/.env), shell env, or pass --cookie to call /api/chat as an authenticated user."
     );
   }
 
@@ -220,18 +220,8 @@ function resolveModelSeed(options: CliOptions): number | undefined {
   return normalizeOptionNumber(raw);
 }
 
-async function loadDotEnvFromProjectRoot(): Promise<void> {
-  const envPath = path.join(projectRoot, ".env");
-
-  let envRaw = "";
-  try {
-    envRaw = await readFile(envPath, "utf8");
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") return;
-    throw error;
-  }
-
+function parseEnvLines(envRaw: string): Record<string, string> {
+  const result: Record<string, string> = {};
   const lines = envRaw.split(/\r?\n/);
   for (const rawLine of lines) {
     const trimmed = rawLine.trim();
@@ -251,7 +241,33 @@ async function loadDotEnvFromProjectRoot(): Promise<void> {
       value = value.slice(1, -1);
     }
 
-    // Keep explicit shell environment values highest priority.
+    result[key] = value;
+  }
+  return result;
+}
+
+async function readEnvFileIfExists(relativePath: string): Promise<Record<string, string>> {
+  const envPath = path.join(projectRoot, relativePath);
+  let envRaw = "";
+  try {
+    envRaw = await readFile(envPath, "utf8");
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return {};
+    throw error;
+  }
+  return parseEnvLines(envRaw);
+}
+
+/**
+ * Priority: shell env > .env.benchmark > .env
+ */
+async function loadDotEnvFromProjectRoot(): Promise<void> {
+  const fromEnv = await readEnvFileIfExists(".env");
+  const fromBenchmark = await readEnvFileIfExists(".env.benchmark");
+  const merged = { ...fromEnv, ...fromBenchmark };
+
+  for (const [key, value] of Object.entries(merged)) {
     if (process.env[key] === undefined) {
       process.env[key] = value;
     }

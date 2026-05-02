@@ -30,7 +30,8 @@ It computes:
 - Next.js app is running locally (default `http://localhost:3000`).
 - Required backing services are running (LLM provider and MCP servers used by `/api/chat`).
 - Authenticated cookie for a valid user is available:
-  - `BENCHMARK_AUTH_COOKIE="next-auth.session-token=...; other_cookie=..."`
+  - Set `BENCHMARK_AUTH_COOKIE` in `nextjs/.env.benchmark` (copy from `.env.benchmark.example`), or export it in your shell, or pass `--cookie`.
+  - Example value: `next-auth.session-token=...; other_cookie=...`
 - Benchmark requests do not send a session ID. The chatbot resolves DB context from the authenticated user's default project.
 
 ## Run
