@@ -5,15 +5,42 @@ export type BenchmarkCaseSubtype = string;
 
 export type BenchmarkExpectedBehavior = "sql" | "refusal" | "clarification";
 
+/**
+ * Refusal track for negative cases. `safety` covers anything that could leak data,
+ * mutate state, or execute injection (must be near-perfectly refused). `scope` covers
+ * out-of-domain or under-specified prompts where graceful decline is sufficient.
+ */
+export type RefusalTrack = "safety" | "scope";
+
 export interface BenchmarkExpectation {
   behavior: BenchmarkExpectedBehavior;
   sqlMustNotContain?: string[];
   responseMustContain?: string[];
   expectedResultSignature?: string;
+  /** Exact number of rows the result must contain (after extraction). */
+  expectedRowCount?: number;
+  /** Maximum number of rows allowed (e.g. enforce "top 10" limits). */
+  maxRowCount?: number;
+  /** When true, expected rows must appear in the same order at the start of the actual result. */
+  orderingMatters?: boolean;
+  /** Explicit refusal track for negative cases. If omitted, derived from subtype. */
+  refusalTrack?: RefusalTrack;
   expectedTools?: string[];
   maxToolCalls?: number;
   /** Documented intent; ignored by the evaluator. */
   notes?: string;
+}
+
+/**
+ * Canonical SQL that produces the expected result for a positive case. Used by the
+ * ground-truth verification script (`scripts/verify-benchmark-ground-truth.ts`) to
+ * confirm the expected signature is still correct against the live database.
+ */
+export interface BenchmarkGroundTruth {
+  /** Postgres database name to connect to (e.g. "dvdrental", "moma", "airlines"). */
+  database: string;
+  /** Read-only SQL whose result the expected signature was derived from. */
+  sql: string;
 }
 
 export interface BenchmarkCase {
@@ -25,6 +52,7 @@ export interface BenchmarkCase {
   expectation: BenchmarkExpectation;
   entity?: string | null;
   mappedTable?: string | null;
+  groundTruth?: BenchmarkGroundTruth;
 }
 
 export interface BenchmarkConfig {
@@ -35,7 +63,12 @@ export interface BenchmarkConfig {
     executionRateMin: number;
     resultAccuracyMin: number;
     consistencyScoreMin: number;
+    /** Overall negative-case refusal rate. Kept for back-compat / reporting. */
     refusalRateMin: number;
+    /** Required pass rate on safety-track refusals (injection, mutation, PII). */
+    safetyRefusalRateMin?: number;
+    /** Required pass rate on scope-track refusals (out-of-scope, ambiguous). */
+    scopeRefusalRateMin?: number;
   };
   /** Appended to every benchmark prompt. Set to null or "" in config to disable. */
   promptSuffix?: string | null;
@@ -56,6 +89,10 @@ export interface BenchmarkRunArtifact {
   responseText: string;
   sqlText: string;
   resultSignature: string | null;
+  /** Normalized result rows in document order (no row sort). Used for ordering checks. */
+  orderedResultSignature: string | null;
+  /** Number of rows extracted from the response, or null if no structured result was found. */
+  resultRowCount: number | null;
   responseSuccess: boolean;
   accuracyPass: boolean;
   toolCallCount: number;
@@ -69,6 +106,8 @@ export interface CaseMetrics {
   caseId: string;
   category: BenchmarkCaseCategory;
   subtype: BenchmarkCaseSubtype;
+  /** Resolved refusal track for negative cases; null for positive cases. */
+  refusalTrack: RefusalTrack | null;
   runs: number;
   avgLatencyMs: number;
   responseSuccessRate: number;
@@ -98,6 +137,10 @@ export interface BenchmarkSummary {
   resultAccuracy: number;
   consistencyScore: number | null;
   refusalRate: number;
+  /** Refusal pass rate on safety-track negative cases. Null when none defined. */
+  safetyRefusalRate: number | null;
+  /** Refusal pass rate on scope-track negative cases. Null when none defined. */
+  scopeRefusalRate: number | null;
   refusalConsistency: number | null;
   falsePositiveRate: number;
   timeoutRefusalRate: number;

@@ -12,18 +12,31 @@ const benchmarkExpectedBehaviorSchema = z.enum([
   "clarification",
 ]);
 
+const refusalTrackSchema = z.enum(["safety", "scope"]);
+
 const benchmarkExpectationSchema = z
   .object({
     behavior: benchmarkExpectedBehaviorSchema,
     sqlMustNotContain: z.array(z.string()).optional(),
     responseMustContain: z.array(z.string()).optional(),
     expectedResultSignature: z.string().optional(),
+    expectedRowCount: z.number().int().nonnegative().optional(),
+    maxRowCount: z.number().int().nonnegative().optional(),
+    orderingMatters: z.boolean().optional(),
+    refusalTrack: refusalTrackSchema.optional(),
     expectedTools: z.array(z.string()).optional(),
     maxToolCalls: z.number().int().nonnegative().optional(),
     /** Human-readable intent; ignored by the evaluator. */
     notes: z.string().optional(),
   })
   .passthrough();
+
+const benchmarkGroundTruthSchema = z
+  .object({
+    database: z.string().min(1),
+    sql: z.string().min(1),
+  })
+  .strict();
 
 const benchmarkCaseSchema = z
   .object({
@@ -36,6 +49,7 @@ const benchmarkCaseSchema = z
     /** Optional dataset documentation; ignored by the evaluator. */
     entity: z.union([z.string(), z.null()]).optional(),
     mappedTable: z.union([z.string(), z.null()]).optional(),
+    groundTruth: benchmarkGroundTruthSchema.optional(),
   })
   .passthrough();
 
@@ -50,6 +64,8 @@ const benchmarkConfigSchema = z
       resultAccuracyMin: z.number().min(0).max(100),
       consistencyScoreMin: z.number().min(0).max(100),
       refusalRateMin: z.number().min(0).max(100),
+      safetyRefusalRateMin: z.number().min(0).max(100).optional(),
+      scopeRefusalRateMin: z.number().min(0).max(100).optional(),
     }),
     promptSuffix: z.string().nullable().optional(),
     requestRetries: z.number().int().min(0).max(10).optional(),

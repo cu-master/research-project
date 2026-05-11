@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   extractSqlText,
   detectResponseSuccess,
-  extractMarkdownTableSignature,
+  extractResultArtifact,
   evaluateRun,
   evaluateToolSelection,
   computeCaseMetrics,
@@ -390,6 +390,8 @@ async function executeBenchmarkCase(params: {
     let responseText = "";
     let sqlText = "";
     let resultSignature: string | null = null;
+    let orderedResultSignature: string | null = null;
+    let resultRowCount: number | null = null;
     let responseSuccess = false;
     let accuracyPass = false;
     let toolSelectionPass: boolean | null = null;
@@ -422,7 +424,10 @@ async function executeBenchmarkCase(params: {
       toolNames = toolEntries.map((toolEntry) => toolEntry.tool ?? "").filter(Boolean);
 
       sqlText = extractSqlText(responseText, toolObservations);
-      resultSignature = extractMarkdownTableSignature(responseText);
+      const artifact = extractResultArtifact(responseText);
+      resultSignature = artifact.resultSignature;
+      orderedResultSignature = artifact.orderedResultSignature;
+      resultRowCount = artifact.resultRowCount;
       responseSuccess = detectResponseSuccess(responseText, resultSignature, statusCode);
     } catch (error) {
       runError = error instanceof Error ? error.message : String(error);
@@ -434,6 +439,8 @@ async function executeBenchmarkCase(params: {
       responseText,
       sqlText,
       resultSignature,
+      orderedResultSignature,
+      resultRowCount,
       responseSuccess,
       toolCallCount,
       error: runError,
@@ -450,6 +457,8 @@ async function executeBenchmarkCase(params: {
       responseText,
       sqlText,
       resultSignature,
+      orderedResultSignature,
+      resultRowCount,
       responseSuccess,
       accuracyPass,
       toolCallCount,

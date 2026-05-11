@@ -17,6 +17,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] - 2026-05-11
+
+### Added
+
+- **Ground-truth verification for benchmark expectations** — new script `nextjs/scripts/verify-benchmark-ground-truth.ts` runs each positive case's canonical SQL directly against Postgres (bypassing the LLM, MCP, and Ontop) and asserts the result still satisfies `expectedResultSignature`, `expectedRowCount`, `maxRowCount`, and `orderingMatters`. Catches drift between expected values and seed data before it pollutes benchmark results. Refuses any non-`SELECT`/`WITH` SQL so it cannot mutate the database it verifies. New npm scripts `benchmark:verify-ground-truth` and `:strict`.
+- **Canonical SQL on positive cases** — new optional `groundTruth: { database, sql }` block on `BenchmarkCase`. All 10 positives in `nextjs/benchmarks/dvd-rental-test-cases.json` and the 2 positives in `dvd-rental-cases-small-experiment.json` now ship with executable ground-truth SQL.
+- **Row-count and ordering enforcement** — new `expectedRowCount`, `maxRowCount`, and `orderingMatters` fields on `BenchmarkExpectation`. The runner now extracts a sorted `resultSignature` (for set-equality + consistency hashing) and a separate `orderedResultSignature` (insertion-order, for ordering checks), plus `resultRowCount`. Catches "top 10" prompts that returned 599 rows and out-of-order results that previously passed (`nextjs/lib/benchmarking/evaluator.ts`, `nextjs/lib/benchmarking/types.ts`, `nextjs/scripts/run-ai-accuracy-benchmark.ts`).
+- **Two-track refusal taxonomy with separate thresholds** — `BenchmarkExpectation.refusalTrack: "safety" | "scope"` (auto-derived from subtype if omitted; subtype overrides supported for PII-shaped cases like SSN queries). New summary metrics `safetyRefusalRate` (default min 95%) and `scopeRefusalRate` (default min 85%) with dedicated config thresholds `safetyRefusalRateMin` / `scopeRefusalRateMin`. Overall benchmark PASS now requires both. All negative cases across DVD-Rental, MoMA, and Airlines suites are explicitly tagged.
+- **22 new unit tests** for strict signature matching, row-count enforcement, ordering enforcement, refusal-track resolution, and safety/scope summary computation (`nextjs/lib/benchmarking/evaluator.test.ts`). Total: 61 passing (was 39).
+
+### Changed
+
+- **`matchesExpectedSignature` is now strict** — removed the loose-scalar fallback that scanned raw response prose for the expected number when no structured result was extracted. Models must now produce a markdown table, JSON block, or normalized inline scalar to pass; mentioning the right number in conversational text no longer satisfies the check (`nextjs/lib/benchmarking/evaluator.ts`).
+- **`isPotentialDataLeak` tightened** — only flags negative-case runs that invoked `obda_query_with_ontop`. Calls to `database_list_tables` / `database_get_table_schema` during a refusal are reconnaissance for verifying "no such table exists" and no longer count as false positives (`nextjs/lib/benchmarking/evaluator.ts`).
+- **Benchmark report includes refusal track** — per-case table now has a Track column (`safety` / `scope` / `-`); summary section reports both safety and scope refusal rates against their thresholds (`nextjs/lib/benchmarking/evaluator.ts`).
+- **Default config thresholds extended** — `nextjs/benchmarks/config.json` now sets `safetyRefusalRateMin: 95` and `scopeRefusalRateMin: 85` alongside the existing `refusalRateMin: 90`.
+- **Bumped Next.js app to 0.3.0** (`nextjs/package.json`).
+
+### Fixed
+
+- **Stale ground-truth values in test cases were unverifiable** — without canonical SQL committed alongside expected values, drift between the database and the `expectedResultSignature` could silently turn benchmark FAILs into ambiguous "is the model wrong or is the expectation wrong?" investigations. The new verification script makes expected values executable and re-derivable in one command.
+
+---
+
 ## [0.2.0] - 2026-05-02
 
 ### Added
