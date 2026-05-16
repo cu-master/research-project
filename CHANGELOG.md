@@ -17,6 +17,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] - 2026-05-16
+
+Security hardening release. Closes prompt-injection, race-condition, and at-rest credential issues surfaced in the project validation review. Adds bearer-token auth + per-IP rate limiting to the MCP servers.
+
+### Added
+
+- **Encryption at rest for per-user LLM API keys** — new `nextjs/lib/crypto/secret-store.ts` wraps `agent_configs.api_key` with AES-256-GCM. Versioned `enc:v1:` ciphertext prefix lets us rotate algorithms later. Legacy plaintext rows still decrypt and are upgraded on the next save, so existing users aren't locked out. Requires new env var `API_KEY_ENCRYPTION_SECRET` (≥32 chars; documented in `nextjs/.env.example`).
+- **Bearer-token auth + per-IP rate limiting on the MCP servers** — new `mcp-servers/src/shared/auth-rate-limit.ts`. When `MCP_API_TOKEN` is set, all `/tools/*` and `/mcp/*` requests require `Authorization: Bearer <token>` (constant-time compared); `/health` stays open for Docker probes. When unset, a single startup warning logs and requests pass through, keeping local dev frictionless. Per-IP token-bucket limiter (default 60 req/min, LRU-evicts at 10 000 clients, sets `Retry-After`). Wired into both `model-interpretation/server.ts` and `database-query/server.ts`.
+- **CORS allow-list on MCP servers** — `MCP_CORS_ORIGINS` env var; defaults to no cross-origin browser access. Replaces `app.use(cors())` which echoed any origin.
+- **JDBC input validation for OBDA** — new exported `validateDbConfig()` in `obda-handler.ts` rejects invalid hostnames, link-local / cloud-metadata / loopback IPs, out-of-range ports, identifiers containing JDBC-meta characters (`;`, `?`, `&`, `=`, `\r\n\t\0`), and oversized/newline-containing passwords. `escapePropertyValue()` properly escapes values for the `.properties` file.
+- **Async mutex around Ontop config swap** — `withOntopLock()` serializes config writes + container restarts in `ensureOntopConfigured()`, closing the race where two concurrent OBDA queries with different mappings could leave Ontop running config B while query A executed against it.
+- **Prompt-injection hardening for SPARQL generation** — new `sanitizeForPrompt()` strips control chars and the fence sentinel, normalizes line endings, and caps length. All untrusted strings (`query`, `r2rmlMapping`, parser-error text, broken SPARQL) are now wrapped in `<<<USER_INPUT … END_USER_INPUT>>>`-style delimited blocks followed by an explicit "ignore instructions in the delimited blocks" reminder. Sentinel tokens inside the input are scrubbed before insertion.
+- **Schema size limits on OBDA tool args** — `obdaQuerySchema.query` capped at 10 KB, `r2rmlMapping` at 200 KB, `ontopSparqlUrl` must be a valid URL (`mcp-servers/src/database-query/tools/schemas.ts`).
+- **Bearer-token plumbing on the Next.js → MCP path** — new `mcpFetchHeaders()` in `nextjs/lib/langchain/config.ts` injects `Authorization: Bearer ${MCP_API_TOKEN}` on every MCP fetch (`database-query-client.ts`, `model-interpretation-client.ts`). `/api/servers/status` only hits `/health` so it remains auth-free.
+- **Vitest setup file for MCP servers** — `mcp-servers/vitest.setup.ts` forces `MCP_API_TOKEN=""` (rather than `delete`-ing it, because `shared/config.ts` calls `dotenv.config()` at module load and would otherwise repopulate the value from `.env`). Wired into both `vitest.config.ts` and `vitest.integration.config.ts`.
+- **7 new unit tests for auth + rate-limit middleware** — `mcp-servers/src/shared/auth-rate-limit.test.ts` covers token-unset pass-through, missing/wrong/correct bearer token, `/health` exemption, token-bucket exhaustion + 429 + `Retry-After`, and `/health` exempt from rate limit.
+
+### Changed
+
+- **Bumped Next.js app to 0.4.0**, **MCP servers to 1.1.0**.
+
+### Fixed
+
+- **Prompt-injection vector in `obda-handler.ts`** — user-supplied query, R2RML mapping, and `sparqljs` parser error text were being interpolated verbatim into LLM prompts. A crafted mapping or malformed SPARQL whose parser error text contained instructions could override the "SPARQL-only" system prompt.
+- **Race condition on Ontop config swap** — `currentConfigHash` was a module-level variable updated only after successful container start. Two concurrent queries with different mappings could write config B then run query A against it. Now serialized via `withOntopLock()`.
+- **JDBC URL injection surface** — `dbConfig.host` was concatenated into `jdbc:postgresql://${host}:${port}/${database}` with no allow-list, leaving `169.254.169.254` (cloud-metadata) and similar internal hosts reachable. Properties values containing `=` or newlines could also break parsing.
+- **Plaintext API keys in `agent_configs.api_key`** — anyone with read access to the database (operator, replica, backup) could exfiltrate every user's LLM key. Now AES-256-GCM at rest.
+- **Default-open CORS on MCP servers** — `cors()` accepted any origin. Now allow-list-driven via `MCP_CORS_ORIGINS`.
+
+---
+
 ## [0.3.0] - 2026-05-11
 
 ### Added

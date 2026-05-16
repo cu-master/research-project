@@ -40,14 +40,17 @@ export const obdaQuerySchema = z.object({
   query: z
     .string()
     .min(1)
+    .max(10_000)
     .describe("User's natural language database query."),
   r2rmlMapping: z
     .string()
     .min(1)
+    .max(200_000)
     .describe("R2RML mapping in Turtle syntax."),
   dbConfig: dbConfigSchema.describe("Database connection configuration for Ontop."),
   ontopSparqlUrl: z
     .string()
+    .url()
     .optional()
     .describe("Ontop SPARQL endpoint URL (defaults to server config)."),
   includeDebugContext: z

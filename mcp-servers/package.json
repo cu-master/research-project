@@ -1,6 +1,6 @@
 {
   "name": "mcp-servers",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "main": "dist/index.js",
   "description": "MCP servers for AI-powered model interpretation and database querying",

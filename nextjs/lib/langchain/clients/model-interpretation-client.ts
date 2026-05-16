@@ -1,4 +1,4 @@
-import { MODEL_INTERPRETATION_BASE_URL } from "../config";
+import { MODEL_INTERPRETATION_BASE_URL, mcpFetchHeaders } from "../config";
 import { McpToolResponse } from "../types";
 
 export async function callModelInterpretationTool(
@@ -10,7 +10,7 @@ export async function callModelInterpretationTool(
   try {
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: mcpFetchHeaders(),
       body: JSON.stringify({ name: toolName, arguments: args }),
     });
 

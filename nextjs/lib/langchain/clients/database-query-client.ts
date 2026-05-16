@@ -1,4 +1,4 @@
-import { DATABASE_QUERY_BASE_URL } from "../config";
+import { DATABASE_QUERY_BASE_URL, mcpFetchHeaders } from "../config";
 import { McpToolResponse } from "../types";
 
 // Track which project databases have been registered in this process lifetime
@@ -34,7 +34,7 @@ export async function ensureProjectDatabase(project: {
   try {
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: mcpFetchHeaders(),
       body: JSON.stringify({
         id: dbId,
         name: project.db_name || `Project DB`,
@@ -71,7 +71,7 @@ export async function callDatabaseQueryTool(
   try {
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: mcpFetchHeaders(),
       body: JSON.stringify({ name: toolName, arguments: args }),
     });
 

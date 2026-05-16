@@ -3,6 +3,7 @@ import cors from "cors";
 import { config } from "./config.js";
 import { dbManager } from "./manager.js";
 import { tools, toolMap } from "./tools/index.js";
+import { bearerAuth, rateLimit } from "../shared/index.js";
 
 // ============================================================================
 // Express App Setup
@@ -10,8 +11,19 @@ import { tools, toolMap } from "./tools/index.js";
 
 export const app = express();
 
-app.use(cors());
+const corsOrigins = (process.env.MCP_CORS_ORIGINS || "")
+  .split(",").map((s) => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: corsOrigins.length ? corsOrigins : false,
+  credentials: false,
+}));
+
 app.use(express.json({ limit: "10mb" }));
+app.use(rateLimit({
+  max: parseInt(process.env.MCP_RATE_LIMIT_MAX || "60", 10),
+  windowMs: parseInt(process.env.MCP_RATE_LIMIT_WINDOW_MS || "60000", 10),
+}));
+app.use(bearerAuth());
 
 // ============================================================================
 // Health Check Endpoint
