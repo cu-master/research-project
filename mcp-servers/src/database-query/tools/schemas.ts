@@ -1,9 +1,5 @@
 import { z } from "zod";
 
-// ============================================================================
-// Tool Schemas
-// ============================================================================
-
 export const listTablesSchema = z.object({
   includeViews: z.boolean().optional().describe("Whether to include views (default: true)"),
   schemaName: z.string().optional().describe("Schema name (default: public)"),
@@ -22,10 +18,6 @@ export const getTableSchemaSchema = z.object({
     .optional()
     .describe("ID of the database to use (uses default if not specified)"),
 });
-
-// ============================================================================
-// OBDA Query Schema
-// ============================================================================
 
 const dbConfigSchema = z.object({
   host: z.string().describe("Database host"),

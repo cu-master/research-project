@@ -3,34 +3,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { LLMConfig, LLMProvider } from "./types.js";
 
-// ============================================================================
-// Environment Setup Helper
-// ============================================================================
-
-/**
- * Loads environment variables from .env file.
- * Should be called once at the start of each server.
- */
+// Call once at server startup.
 export function loadEnv(dirname: string): void {
   dotenv.config({ path: path.resolve(dirname, "../../.env") });
 }
 
-/**
- * Helper to get dirname from import.meta.url
- */
 export function getDirname(importMetaUrl: string): string {
   const __filename = fileURLToPath(importMetaUrl);
   return path.dirname(__filename);
 }
 
-// ============================================================================
-// LLM Configuration Helper
-// ============================================================================
-
-/**
- * Creates LLM configuration from environment variables.
- * Provides consistent defaults across all servers.
- */
 export function createLLMConfig(overrides?: Partial<LLMConfig>): LLMConfig {
   return {
     provider:

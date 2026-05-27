@@ -4,6 +4,7 @@ import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatOpenAI } from "@langchain/openai";
 import type { ModelProvider } from "./types";
 import { LLM_PROVIDER } from "./config";
+import { MAX_OUTPUT_TOKENS } from "./token-budget";
 
 interface CreateModelOptions {
   provider?: ModelProvider;
@@ -65,13 +66,21 @@ export function createModel(options?: CreateModelOptions): BaseChatModel {
   const provider = options?.provider ?? runtimeProvider ?? LLM_PROVIDER;
 
   switch (provider) {
+    // NFR-06: cap output tokens per request so a single response can't blow
+    // through the 4k/request budget. Input side is gated separately in
+    // checkRequestBudget() before this model is even invoked.
     case "anthropic": {
       const apiKey = getApiKey("anthropic");
       const modelName =
         options?.model ?? runtimeModel ?? process.env.ANTHROPIC_MODEL ?? "claude-3-5-haiku-latest";
       if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY for Anthropic provider.");
       console.log(`Using Anthropic model: ${modelName}`);
-      return new ChatAnthropic({ apiKey, model: modelName, temperature: options?.temperature });
+      return new ChatAnthropic({
+        apiKey,
+        model: modelName,
+        temperature: options?.temperature,
+        maxTokens: MAX_OUTPUT_TOKENS,
+      });
     }
 
     case "openai": {
@@ -80,7 +89,12 @@ export function createModel(options?: CreateModelOptions): BaseChatModel {
         options?.model ?? runtimeModel ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini";
       if (!apiKey) throw new Error("Missing OPENAI_API_KEY for OpenAI provider.");
       console.log(`Using OpenAI model: ${modelName}`);
-      return new ChatOpenAI({ apiKey, model: modelName, temperature: options?.temperature });
+      return new ChatOpenAI({
+        apiKey,
+        model: modelName,
+        temperature: options?.temperature,
+        maxTokens: MAX_OUTPUT_TOKENS,
+      });
     }
 
     case "groq": {
@@ -94,6 +108,7 @@ export function createModel(options?: CreateModelOptions): BaseChatModel {
         model: modelName,
         configuration: { baseURL: "https://api.groq.com/openai/v1" },
         temperature: options?.temperature,
+        maxTokens: MAX_OUTPUT_TOKENS,
       });
     }
 
@@ -104,7 +119,12 @@ export function createModel(options?: CreateModelOptions): BaseChatModel {
         options?.model ?? runtimeModel ?? process.env.GOOGLE_MODEL ?? "gemini-1.5-flash";
       if (!apiKey) throw new Error("Missing GOOGLE_API_KEY for Google provider.");
       console.log(`Using Google model: ${modelName}`);
-      return new ChatGoogleGenerativeAI({ apiKey, model: modelName, temperature: options?.temperature });
+      return new ChatGoogleGenerativeAI({
+        apiKey,
+        model: modelName,
+        temperature: options?.temperature,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+      });
     }
   }
 }

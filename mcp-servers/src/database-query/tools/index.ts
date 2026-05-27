@@ -11,10 +11,6 @@ import {
 } from "./handlers.js";
 import { handleObdaQuery } from "./obda-handler.js";
 
-// ============================================================================
-// Tool Registry
-// ============================================================================
-
 export const tools: ToolDefinition[] = [
   {
     name: "list-tables",
@@ -42,7 +38,6 @@ export const tools: ToolDefinition[] = [
 
 export const toolMap = new Map(tools.map((t) => [t.name, t]));
 
-// Re-export schemas and handlers for direct access
 export * from "./schemas.js";
 export * from "./handlers.js";
 export * from "./obda-handler.js";

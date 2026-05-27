@@ -1,9 +1,5 @@
 import { startServer } from "./server.js";
 
-// ============================================================================
-// Main Entry Point
-// ============================================================================
-
 async function main() {
   console.log("Model Interpretation MCP Server v1.0.0\n");
 
@@ -19,10 +15,6 @@ main().catch((error) => {
   console.error("Fatal error in main():", error);
   process.exit(1);
 });
-
-// ============================================================================
-// Re-exports for external use
-// ============================================================================
 
 export * from "./types.js";
 export * from "./config.js";

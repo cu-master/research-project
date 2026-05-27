@@ -2,10 +2,6 @@ import pg from "pg";
 import type { Constraint, DatabaseType, ForeignKey, PostgreSQLConfig, QueryResult, TableColumn, TableInfo } from "../types.js";
 import type { DatabaseAdapter } from "./interface.js";
 
-// ============================================================================
-// PostgreSQL Adapter
-// ============================================================================
-
 export class PostgreSQLAdapter implements DatabaseAdapter {
   readonly type: DatabaseType = "postgresql";
   private pool: pg.Pool | null = null;
@@ -18,7 +14,6 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
   async connect(): Promise<void> {
     if (this.pool) return;
 
-    // Validate required configuration
     if (!this.config.host) {
       throw new Error("PostgreSQL host is required");
     }
@@ -28,9 +23,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
     if (!this.config.user) {
       throw new Error("PostgreSQL user is required");
     }
-    // Note: password can be empty for local connections using peer/trust authentication
+    // Password may be empty for local peer/trust auth.
 
-    // Create pool with longer timeout for local connections
     this.pool = new pg.Pool({
       host: this.config.host,
       port: this.config.port,
@@ -40,24 +34,19 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
       ssl: this.config.ssl,
       max: 10,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000, // Increased to 10 seconds for local connections
+      connectionTimeoutMillis: 10000,
     });
 
-    // Test the connection with proper error handling
     let client: pg.PoolClient | null = null;
     try {
       client = await this.pool.connect();
-      // Test with a simple query
       await client.query("SELECT 1");
     } catch (error) {
-      // Clean up the pool if connection fails
       if (this.pool) {
-        await this.pool.end().catch(() => {
-          // Ignore errors during cleanup
-        });
+        await this.pool.end().catch(() => {});
         this.pool = null;
       }
-      
+
       const errorMessage = error instanceof Error ? error.message : String(error);
       throw new Error(
         `Failed to connect to PostgreSQL database "${this.config.database}" at ${this.config.host}:${this.config.port}. ` +

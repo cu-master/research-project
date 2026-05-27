@@ -2,16 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { LLMConfig } from "../types.js";
 
-// ============================================================================
-// AI Client Instances (Singleton Pattern)
-// ============================================================================
-
 let anthropicClient: Anthropic | null = null;
 let googleClient: GoogleGenerativeAI | null = null;
-
-// ============================================================================
-// Client Getters
-// ============================================================================
 
 function getAnthropicClient(apiKey: string | undefined): Anthropic {
   if (!anthropicClient) {
@@ -34,10 +26,6 @@ function getGoogleClient(apiKey: string | undefined): GoogleGenerativeAI {
   }
   return googleClient;
 }
-
-// ============================================================================
-// AI Call Functions
-// ============================================================================
 
 async function callAnthropic(
   config: LLMConfig,
@@ -81,13 +69,11 @@ async function callGoogle(
   const candidate = result.response.candidates?.[0];
   const finishReason = candidate?.finishReason;
 
-  // Check for safety/blocking issues first (even if there's partial text)
   if (finishReason === "SAFETY") {
     console.error("Google AI blocked due to safety filters");
     return "The AI was unable to generate a response due to content safety filters.";
   }
 
-  // Log if response is empty
   if (!text || text.trim().length === 0) {
     console.error("Google AI returned empty response");
     console.error("Prompt length:", prompt.length);
@@ -100,7 +86,6 @@ async function callGoogle(
     return "The AI returned an empty response. Try a more specific request.";
   }
 
-  // If we got text but hit MAX_TOKENS, log but return what we have
   if (finishReason === "MAX_TOKENS") {
     console.log(
       `Response was truncated at ${text.length} chars due to MAX_TOKENS`
@@ -171,8 +156,7 @@ async function callOpenAI(
     temperature,
   };
 
-  // Newer OpenAI models (including GPT-5 family) expect max_completion_tokens.
-  // Keep a fallback to max_tokens for older compatibility.
+  // Newer OpenAI models expect max_completion_tokens; falls back to max_tokens for older models.
   let response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -232,19 +216,12 @@ async function callOpenAI(
   return text;
 }
 
-// ============================================================================
-// AI Provider Factory
-// ============================================================================
-
 interface CallAIOptions {
   maxTokens?: number;
   temperature?: number;
 }
 
-/**
- * Creates an AI caller function bound to a specific configuration.
- * This allows each server to have its own configuration while sharing the implementation.
- */
+// Returns a callAI function bound to the given config so each server can share this implementation.
 export function createAICaller(config: LLMConfig) {
   return async function callAI(
     prompt: string,

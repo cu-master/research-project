@@ -2,16 +2,8 @@ import path from "node:path";
 import { loadEnv, getDirname, createLLMConfig } from "../shared/index.js";
 import type { AppConfig } from "./types.js";
 
-// ============================================================================
-// Environment Setup
-// ============================================================================
-
 const __dirname = getDirname(import.meta.url);
 loadEnv(__dirname);
-
-// ============================================================================
-// App Configuration
-// ============================================================================
 
 const llmConfig = createLLMConfig({
   ...(process.env.DB_GOOGLE_MODEL    && { googleModel:    process.env.DB_GOOGLE_MODEL }),

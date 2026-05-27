@@ -17,6 +17,11 @@ import { getUserAgentConfig } from "@/lib/db/agent-config";
 import { getRuntimeConfig, setRuntimeModel, setRuntimeApiKey } from "@/lib/langchain/model";
 import { resetAgent } from "@/lib/langchain/agent";
 import type { ModelProvider } from "@/lib/langchain/types";
+import {
+  MAX_TOOL_CALLS,
+  TOOL_LOOP_EXCEEDED_MESSAGE,
+  checkRequestBudget,
+} from "@/lib/langchain/token-budget";
 
 type StreamToolCall = {
   tool: string;
@@ -133,6 +138,58 @@ export async function POST(request: Request) {
 
     const { message, history, sessionId } = parsedBody;
     const safeMessage = typeof message === "string" ? message : "";
+    const sessionIdForBudget =
+      typeof sessionId === "string" && sessionId.trim() !== "" ? sessionId : undefined;
+
+    // NFR-06: enforce per-request + per-session token budget BEFORE we spend
+    // any model/tool credits. Returns a streamed "graceful termination"
+    // message identical in shape to a normal assistant reply so the UI just
+    // displays it and the budget event is persisted in chat history.
+    const budgetVerdict = await checkRequestBudget(sessionIdForBudget, safeMessage);
+    if (!budgetVerdict.ok) {
+      console.log(
+        `[NFR-06] Budget rejected (${budgetVerdict.reason}) for session=${sessionIdForBudget ?? "(none)"}`
+      );
+      const startTime = Date.now();
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const encoder = new TextEncoder();
+          void (async () => {
+            const latency = (Date.now() - startTime) / 1000;
+            if (sessionIdForBudget) {
+              try {
+                await saveMessage(sessionIdForBudget, "user", safeMessage);
+                await saveMessage(
+                  sessionIdForBudget,
+                  "assistant",
+                  budgetVerdict.message,
+                  undefined,
+                  [],
+                  latency
+                );
+              } catch (dbErr) {
+                console.warn("[DB] Budget fast-path: failed to save messages:", dbErr);
+              }
+            }
+            const doneEvent: ChatStreamEvent = {
+              type: "done",
+              response: budgetVerdict.message,
+              toolsUsed: [],
+              latency,
+            };
+            controller.enqueue(encoder.encode(`${JSON.stringify(doneEvent)}\n`));
+            controller.close();
+          })();
+        },
+      });
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "application/x-ndjson; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      });
+    }
 
     // NFR-02 fast-path: block write intent before invoking model/tools.
     if (isMutationIntent(safeMessage)) {
@@ -300,6 +357,8 @@ export async function POST(request: Request) {
           let responseText = "";
           const toolCalls: StreamToolCall[] = [];
           const toolIndexByRunId = new Map<string, number>();
+          // NFR-06: hoisted so the post-stream override can read it.
+          let toolLoopExceeded = false;
 
           try {
             await runWithLangChainRequestContext(
@@ -309,6 +368,12 @@ export async function POST(request: Request) {
                 userId,
               },
               async () => {
+                // NFR-06: 5-step recursion ceiling. recursionLimit on the
+                // LangGraph runtime counts graph steps (LLM call + tool call
+                // ≈ 2 steps each), so we set it generously here and enforce
+                // the explicit 5-tool-call ceiling in the loop below — that
+                // matches the spec wording "5 consecutive tool calls" rather
+                // than internal graph nodes.
                 const eventStream = agent.streamEvents(
                   { messages: messagesToSend },
                   { recursionLimit: 25, version: "v2" }
@@ -330,6 +395,16 @@ export async function POST(request: Request) {
                       tool: toolName,
                       label: toToolLabel(toolName),
                     });
+
+                    // NFR-06 (Recursive Loop Protection): bail out as soon as
+                    // a 6th tool call is initiated. We let the in-flight tool
+                    // finish so the partial state is consistent, then break.
+                    if (toolCalls.length > MAX_TOOL_CALLS) {
+                      console.warn(
+                        `[NFR-06] Aborting agent: exceeded ${MAX_TOOL_CALLS} tool calls (got ${toolCalls.length})`
+                      );
+                      toolLoopExceeded = true;
+                    }
                   } else if (event.event === "on_tool_end") {
                     const idx = toolIndexByRunId.get(event.run_id);
                     const outputText = extractText(event.data?.output ?? "");
@@ -352,6 +427,12 @@ export async function POST(request: Request) {
                       tool: toolName,
                       result: truncateForProgress(outputText),
                     });
+
+                    // NFR-06: stop draining the event stream once we've
+                    // recorded the last allowed tool's result. The graceful-
+                    // termination message replaces the model's natural reply
+                    // below.
+                    if (toolLoopExceeded) break;
                   } else if (event.event === "on_chat_model_stream") {
                     const chunkText = extractText(event.data?.chunk ?? "");
                     if (chunkText) {
@@ -362,6 +443,13 @@ export async function POST(request: Request) {
                 }
               }
             );
+
+            // NFR-06: when the tool-call ceiling was hit, override whatever
+            // partial text the model produced with the spec-mandated graceful
+            // termination message so the user knows the chain was capped.
+            if (toolLoopExceeded) {
+              responseText = TOOL_LOOP_EXCEEDED_MESSAGE;
+            }
 
             // Fallback: use last tool result if response is still empty
             if (!responseText.trim() && toolCalls.length > 0) {

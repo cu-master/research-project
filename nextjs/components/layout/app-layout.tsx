@@ -3,6 +3,7 @@
 import { ReactNode } from "react";
 import { SidebarProvider, useSidebar } from "./sidebar-context";
 import Sidebar from "./sidebar";
+import ConnectionStatus from "./connection-status";
 
 function MainContent({ children }: { children: ReactNode }) {
   const { isCollapsed } = useSidebar();
@@ -13,7 +14,8 @@ function MainContent({ children }: { children: ReactNode }) {
         isCollapsed ? "md:pl-16" : "md:pl-64"
       }`}
     >
-      {children}
+      <ConnectionStatus />
+      <div className="flex-1 flex flex-col overflow-hidden">{children}</div>
     </div>
   );
 }

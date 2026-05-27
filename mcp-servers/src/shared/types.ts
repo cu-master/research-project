@@ -1,7 +1,3 @@
-// ============================================================================
-// MCP Response Types
-// ============================================================================
-
 export interface McpResponse {
   content: Array<{ type: "text"; text: string }>;
   isError?: boolean;
@@ -14,10 +10,6 @@ export interface ToolDefinition {
   inputSchema: Record<string, unknown>;
   handler: (args: Record<string, unknown>) => Promise<McpResponse>;
 }
-
-// ============================================================================
-// LLM Configuration Types
-// ============================================================================
 
 export type LLMProvider = "anthropic" | "google" | "groq" | "openai";
 

@@ -1,4 +1,3 @@
-// Re-export shared types
 export type {
   McpResponse,
   ToolDefinition,
@@ -6,10 +5,6 @@ export type {
   LLMConfig,
   BaseAppConfig,
 } from "../shared/types.js";
-
-// ============================================================================
-// Database Types & Interfaces
-// ============================================================================
 
 export interface TableColumn {
   column_name: string;
@@ -44,10 +39,6 @@ export interface QueryResult {
   error?: string;
 }
 
-// ============================================================================
-// Database Configuration Types
-// ============================================================================
-
 export type DatabaseType = "postgresql";
 
 export interface PostgreSQLConfig {
@@ -61,10 +52,6 @@ export interface PostgreSQLConfig {
 }
 
 export type DatabaseConfig = PostgreSQLConfig;
-
-// ============================================================================
-// App Configuration (extends shared config)
-// ============================================================================
 
 export interface AppConfig {
   provider: import("../shared/types.js").LLMProvider;

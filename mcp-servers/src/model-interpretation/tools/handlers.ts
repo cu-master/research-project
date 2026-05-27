@@ -9,11 +9,6 @@ import {
   suggestQueriesSchema,
 } from "./schemas.js";
 
-
-// ============================================================================
-// Answer Query Handler
-// ============================================================================
-
 export async function handleAnswerQuery(
   args: Record<string, unknown>
 ): Promise<McpResponse> {
@@ -90,11 +85,6 @@ Return a JSON object with this exact structure:
     );
   }
 }
-
-
-// ============================================================================
-// Summarize Content Handler
-// ============================================================================
 
 export async function handleSummarizeContent(
   args: Record<string, unknown>
@@ -206,10 +196,6 @@ Return a JSON object with this exact structure:
     );
   }
 }
-
-// ============================================================================
-// Explain Mapping Handler
-// ============================================================================
 
 export async function handleExplainMapping(
   args: Record<string, unknown>
@@ -352,11 +338,6 @@ Return a JSON object with this exact structure:
   }
 }
 
-
-// ============================================================================
-// Compare Schema & Mapping Handler
-// ============================================================================
-
 export async function handleCompareSchemaMapping(
   args: Record<string, unknown>
 ): Promise<McpResponse> {
@@ -459,10 +440,6 @@ Return ONLY the JSON object, no markdown formatting.`;
     );
   }
 }
-
-// ============================================================================
-// Suggest Queries Handler
-// ============================================================================
 
 export async function handleSuggestQueries(
   args: Record<string, unknown>

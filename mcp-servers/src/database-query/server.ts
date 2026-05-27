@@ -5,10 +5,6 @@ import { dbManager } from "./manager.js";
 import { tools, toolMap } from "./tools/index.js";
 import { bearerAuth, rateLimit } from "../shared/index.js";
 
-// ============================================================================
-// Express App Setup
-// ============================================================================
-
 export const app = express();
 
 const corsOrigins = (process.env.MCP_CORS_ORIGINS || "")
@@ -25,10 +21,6 @@ app.use(rateLimit({
 }));
 app.use(bearerAuth());
 
-// ============================================================================
-// Health Check Endpoint
-// ============================================================================
-
 app.get("/health", (_req: Request, res: Response) => {
   const databases = dbManager.listDatabases();
   res.json({
@@ -40,10 +32,6 @@ app.get("/health", (_req: Request, res: Response) => {
     connectedDatabases: databases.filter((d) => d.connected).length,
   });
 });
-
-// ============================================================================
-// Tool Endpoints
-// ============================================================================
 
 app.get("/tools", (_req: Request, res: Response) => {
   const toolList = tools.map((t) => ({
@@ -87,10 +75,6 @@ app.post("/tools/:name/call", async (req: Request, res: Response) => {
   }
 });
 
-// ============================================================================
-// MCP-Compatible Endpoints
-// ============================================================================
-
 app.post("/mcp/call-tool", async (req: Request, res: Response) => {
   const { name, arguments: args } = req.body;
 
@@ -126,10 +110,6 @@ app.post("/mcp/list-tools", (_req: Request, res: Response) => {
   res.json({ tools: toolList });
 });
 
-// ============================================================================
-// Database Management Endpoints
-// ============================================================================
-
 app.get("/databases", (_req: Request, res: Response) => {
   res.json({ databases: dbManager.listDatabases() });
 });
@@ -142,7 +122,6 @@ app.post("/databases", async (req: Request, res: Response) => {
     return;
   }
 
-  // If already registered and connected, return early
   if (dbManager.hasDatabase(id)) {
     const existing = dbManager.getConnection(id);
     if (existing.adapter.isConnected()) {
@@ -150,12 +129,10 @@ app.post("/databases", async (req: Request, res: Response) => {
       res.json({ status: "already_connected", id });
       return;
     }
-    // Registered but not connected — unregister and re-register
+    // Registered but not connected — unregister and re-register.
     try {
       await dbManager.unregisterDatabase(id);
-    } catch {
-      // ignore cleanup errors
-    }
+    } catch {}
   }
 
   try {
@@ -201,18 +178,10 @@ app.delete("/databases/:id", async (req: Request, res: Response) => {
   }
 });
 
-// ============================================================================
-// Error Handler
-// ============================================================================
-
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error("Server error:", err);
   res.status(500).json({ error: "Internal server error" });
 });
-
-// ============================================================================
-// Server Startup
-// ============================================================================
 
 export function startServer(): void {
   app.listen(config.port, () => {

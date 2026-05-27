@@ -1,4 +1,3 @@
-// Re-export shared types
 export type {
   McpResponse,
   ToolDefinition,
@@ -6,10 +5,6 @@ export type {
   LLMConfig,
   BaseAppConfig,
 } from "../shared/types.js";
-
-// ============================================================================
-// App Configuration (extends shared config)
-// ============================================================================
 
 export interface AppConfig {
   provider: import("../shared/types.js").LLMProvider;

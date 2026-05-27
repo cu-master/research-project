@@ -2,10 +2,6 @@ import type { DatabaseAdapter } from "./adapters/index.js";
 import { PostgreSQLAdapter } from "./adapters/index.js";
 import type { DatabaseConfig, DatabaseType } from "./types.js";
 
-// ============================================================================
-// Database Connection Type
-// ============================================================================
-
 interface DatabaseConnection {
   id: string;
   name: string;
@@ -13,28 +9,15 @@ interface DatabaseConnection {
   adapter: DatabaseAdapter;
 }
 
-// ============================================================================
-// Database Manager
-// ============================================================================
-
-/**
- * Manages multiple database connections.
- * Allows registering, connecting, and querying different databases.
- */
 class DatabaseManager {
   private connections: Map<string, DatabaseConnection> = new Map();
   private defaultConnectionId: string | null = null;
 
-  /**
-   * Check if a database is already registered
-   */
   hasDatabase(id: string): boolean {
     return this.connections.has(id);
   }
 
-  /**
-   * Register a new database connection (skips if already registered)
-   */
+  // Skips if a connection with this id is already registered.
   registerDatabase(id: string, name: string, config: DatabaseConfig): void {
     if (this.connections.has(id)) {
       return;
@@ -49,15 +32,11 @@ class DatabaseManager {
       adapter,
     });
 
-    // Set as default if it's the first connection
     if (this.connections.size === 1) {
       this.defaultConnectionId = id;
     }
   }
 
-  /**
-   * Create appropriate adapter based on config type
-   */
   private createAdapter(config: DatabaseConfig): DatabaseAdapter {
     switch (config.type) {
       case "postgresql":
@@ -67,9 +46,6 @@ class DatabaseManager {
     }
   }
 
-  /**
-   * Connect to a specific database
-   */
   async connectDatabase(id: string): Promise<void> {
     const connection = this.connections.get(id);
     if (!connection) {
@@ -79,9 +55,6 @@ class DatabaseManager {
     await connection.adapter.connect();
   }
 
-  /**
-   * Unregister a database
-   */
   async unregisterDatabase(id: string): Promise<void> {
     const connection = this.connections.get(id);
     if (!connection) {
@@ -97,9 +70,6 @@ class DatabaseManager {
     }
   }
 
-  /**
-   * Get a specific database connection
-   */
   getConnection(id?: string): DatabaseConnection {
     const connectionId = id || this.defaultConnectionId;
     if (!connectionId) {
@@ -114,16 +84,10 @@ class DatabaseManager {
     return connection;
   }
 
-  /**
-   * Get the adapter for a specific database
-   */
   getAdapter(id?: string): DatabaseAdapter {
     return this.getConnection(id).adapter;
   }
 
-  /**
-   * Set the default database connection
-   */
   setDefaultConnection(id: string): void {
     if (!this.connections.has(id)) {
       throw new Error(`Database "${id}" not found`);
@@ -131,9 +95,6 @@ class DatabaseManager {
     this.defaultConnectionId = id;
   }
 
-  /**
-   * List all registered databases
-   */
   listDatabases(): Array<{
     id: string;
     name: string;
@@ -152,6 +113,5 @@ class DatabaseManager {
 
 }
 
-// Global database manager instance
 export const dbManager = new DatabaseManager();
 

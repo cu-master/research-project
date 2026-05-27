@@ -5,10 +5,6 @@ import {
     prepareSqlForExecution,
 } from "./utils.js";
 
-// ============================================================================
-// extractSqlFromResponse
-// ============================================================================
-
 describe("extractSqlFromResponse", () => {
     it("extracts SQL from a ```sql code fence", () => {
         const input = "Here it is:\n```sql\nSELECT * FROM users\n```";
@@ -35,10 +31,6 @@ describe("extractSqlFromResponse", () => {
         expect(extractSqlFromResponse(input)).toBe("some free text");
     });
 });
-
-// ============================================================================
-// validateSelectOnlySql
-// ============================================================================
 
 describe("validateSelectOnlySql", () => {
     it("accepts a plain SELECT query", () => {
@@ -103,10 +95,6 @@ describe("validateSelectOnlySql", () => {
         expect(result.reason).toMatch(/parse/i);
     });
 });
-
-// ============================================================================
-// prepareSqlForExecution
-// ============================================================================
 
 describe("prepareSqlForExecution", () => {
     it("appends LIMIT when the SELECT has no LIMIT clause", () => {

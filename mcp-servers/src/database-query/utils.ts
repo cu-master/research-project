@@ -1,12 +1,7 @@
 import NodeSqlParser from "node-sql-parser";
 const { Parser } = NodeSqlParser;
 
-// Re-export shared utilities
 export { createMcpResponse, formatApiError } from "../shared/utils.js";
-
-// ============================================================================
-// SQL Utilities
-// ============================================================================
 
 function cleanSql(sql: string): string {
   return sql
@@ -42,40 +37,21 @@ export function extractSqlFromResponse(response: string): string {
   return cleanSql(sql);
 }
 
-// ============================================================================
-// NFR-02: SQL Security — AST-Based Validation
-// ============================================================================
-//
-// The LLM output is treated as UNTRUSTED INPUT. We parse the SQL string into
-// an Abstract Syntax Tree (AST) using node-sql-parser and then programmatically
-// verify that the root node is strictly a SELECT statement.
-// Any mutating command (INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE,
-// GRANT, REVOKE) or any SQL that fails to parse is rejected before it ever
-// reaches the database driver.
+// LLM-generated SQL is parsed into an AST and rejected unless it's a single SELECT statement.
+// Enforcement point for the NFR-02 SQL-injection guard — must run before driver execution.
 
 export interface SqlValidationResult {
-  /** True only when the SQL is a single, valid SELECT statement. */
   valid: boolean;
-  /** The AST statement type detected (e.g. 'select', 'insert', 'drop'). */
   statementType?: string;
-  /** Human-readable rejection reason when valid === false. */
   reason?: string;
 }
 
 const _sqlParser = new Parser();
 
-/**
- * Parses `sql` into an AST and verifies that the (first) statement is a
- * SELECT. Any other statement type, or a parse failure, returns valid=false.
- *
- * This is the NFR-02 enforcement point — it must be called before executing
- * any AI-generated SQL against the database driver.
- */
 export function validateSelectOnlySql(sql: string): SqlValidationResult {
   let ast;
 
   try {
-    // astify() throws on invalid SQL, so parse failures are automatically caught
     ast = _sqlParser.astify(sql, { database: "PostgresQL" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -85,10 +61,9 @@ export function validateSelectOnlySql(sql: string): SqlValidationResult {
     };
   }
 
-  // astify() may return an array for multi-statement SQL (e.g. "SELECT 1; DROP TABLE ...")
+  // astify() returns an array for multi-statement SQL (e.g. "SELECT 1; DROP TABLE ...").
   const statements = Array.isArray(ast) ? ast : [ast];
 
-  // Reject multi-statement SQL outright — only a single statement is permitted
   if (statements.length > 1) {
     const types = statements.map((s) => s?.type ?? "unknown").join(", ");
     return {

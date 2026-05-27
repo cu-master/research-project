@@ -5,10 +5,6 @@ import { tools, toolMap } from "./tools/index.js";
 import { clearAllStoredContent } from "./store.js";
 import { bearerAuth, rateLimit } from "../shared/index.js";
 
-// ============================================================================
-// Express App Setup
-// ============================================================================
-
 export const app = express();
 
 const corsOrigins = (process.env.MCP_CORS_ORIGINS || "")
@@ -25,10 +21,6 @@ app.use(rateLimit({
 }));
 app.use(bearerAuth());
 
-// ============================================================================
-// Health Check Endpoint
-// ============================================================================
-
 app.get("/health", (_req: Request, res: Response) => {
   res.json({
     status: "ok",
@@ -38,10 +30,6 @@ app.get("/health", (_req: Request, res: Response) => {
     toolCount: tools.length,
   });
 });
-
-// ============================================================================
-// Tool Endpoints
-// ============================================================================
 
 app.get("/tools", (_req: Request, res: Response) => {
   const toolList = tools.map((t) => ({
@@ -85,10 +73,6 @@ app.post("/tools/:name/call", async (req: Request, res: Response) => {
   }
 });
 
-// ============================================================================
-// MCP-Compatible Endpoints
-// ============================================================================
-
 app.post("/mcp/call-tool", async (req: Request, res: Response) => {
   const { name, arguments: args } = req.body;
 
@@ -124,10 +108,6 @@ app.post("/mcp/list-tools", (_req: Request, res: Response) => {
   res.json({ tools: toolList });
 });
 
-// ============================================================================
-// Store Management Endpoints
-// ============================================================================
-
 app.post("/mcp/clear-store", (_req: Request, res: Response) => {
   try {
     clearAllStoredContent();
@@ -138,18 +118,10 @@ app.post("/mcp/clear-store", (_req: Request, res: Response) => {
   }
 });
 
-// ============================================================================
-// Error Handler
-// ============================================================================
-
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error("Server error:", err);
   res.status(500).json({ error: "Internal server error" });
 });
-
-// ============================================================================
-// Server Startup
-// ============================================================================
 
 export function startServer(): void {
   app.listen(config.port, () => {

@@ -10,10 +10,6 @@ import {
     summarizeSparqlResults,
 } from "./obda-handler.js";
 
-// ============================================================================
-// buildPropertiesContent
-// ============================================================================
-
 describe("buildPropertiesContent", () => {
     const baseConfig = {
         host: "localhost",
@@ -62,10 +58,6 @@ describe("buildPropertiesContent", () => {
     });
 });
 
-// ============================================================================
-// extractSparqlFromResponse
-// ============================================================================
-
 describe("extractSparqlFromResponse", () => {
     it("extracts from a ```sparql fence", () => {
         const input = "```sparql\nSELECT ?s WHERE { ?s ?p ?o }\n```";
@@ -82,10 +74,6 @@ describe("extractSparqlFromResponse", () => {
         expect(extractSparqlFromResponse(input)).toBe("SELECT ?x WHERE { ?x ?p ?o }");
     });
 });
-
-// ============================================================================
-// looksLikeSparql
-// ============================================================================
 
 describe("looksLikeSparql", () => {
     it("returns true for a SELECT ... WHERE query", () => {
@@ -113,10 +101,6 @@ describe("looksLikeSparql", () => {
     });
 });
 
-// ============================================================================
-// validateSyntax
-// ============================================================================
-
 describe("validateSyntax", () => {
     it("returns valid=true for a well-formed SPARQL SELECT", () => {
         const result = validateSyntax("SELECT ?s WHERE { ?s ?p ?o }");
@@ -136,10 +120,6 @@ describe("validateSyntax", () => {
         expect(result.valid).toBe(false);
     });
 });
-
-// ============================================================================
-// crossCheckPredicates
-// ============================================================================
 
 describe("crossCheckPredicates", () => {
     const mapped = new Set(["http://example.org/Customer"]);
@@ -187,10 +167,6 @@ describe("crossCheckPredicates", () => {
     });
 });
 
-// ============================================================================
-// shortenUri
-// ============================================================================
-
 describe("shortenUri", () => {
     it("extracts fragment after #", () => {
         expect(shortenUri("http://example.org/ontology#Customer")).toBe("Customer");
@@ -209,10 +185,6 @@ describe("shortenUri", () => {
         expect(shortenUri(plain)).toBe(plain);
     });
 });
-
-// ============================================================================
-// summarizeSparqlResults
-// ============================================================================
 
 describe("summarizeSparqlResults", () => {
     it("reports the correct row count and column names", () => {
@@ -239,10 +211,6 @@ describe("summarizeSparqlResults", () => {
         expect(summarizeSparqlResults(results)).toContain("0 result(s)");
     });
 });
-
-// ============================================================================
-// formatSparqlResultsAsOntologyTerms
-// ============================================================================
 
 describe("formatSparqlResultsAsOntologyTerms", () => {
     it("returns a no-results message for empty bindings", () => {

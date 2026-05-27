@@ -15,12 +15,7 @@ import {
   handleSuggestQueries,
 } from "./handlers.js";
 
-// ============================================================================
-// Tool Registry
-// ============================================================================
-
 export const tools: ToolDefinition[] = [
-  // === Answer Query ===
   {
     name: "answer-query",
     description:
@@ -28,7 +23,6 @@ export const tools: ToolDefinition[] = [
     inputSchema: zodToJsonSchema(answerQuerySchema),
     handler: handleAnswerQuery,
   },
-  // === Summarize Content ===
   {
     name: "summarize-content",
     description:
@@ -36,7 +30,6 @@ export const tools: ToolDefinition[] = [
     inputSchema: zodToJsonSchema(summarizeContentSchema),
     handler: handleSummarizeContent,
   },
-  // === Explain Mapping ===
   {
     name: "explain-mapping",
     description:
@@ -44,7 +37,6 @@ export const tools: ToolDefinition[] = [
     inputSchema: zodToJsonSchema(explainMappingSchema),
     handler: handleExplainMapping,
   },
-  // === Compare Schema Mapping ===
   {
     name: "compare-schema-mapping",
     description:
@@ -52,7 +44,6 @@ export const tools: ToolDefinition[] = [
     inputSchema: zodToJsonSchema(compareSchemaMappingSchema),
     handler: handleCompareSchemaMapping,
   },
-  // === Suggest Queries ===
   {
     name: "suggest-queries",
     description:
@@ -64,6 +55,5 @@ export const tools: ToolDefinition[] = [
 
 export const toolMap = new Map(tools.map((t) => [t.name, t]));
 
-// Re-export schemas and handlers for direct access
 export * from "./schemas.js";
 export * from "./handlers.js";

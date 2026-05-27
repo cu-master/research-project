@@ -1,17 +1,9 @@
 import { z } from "zod";
 import type { McpResponse } from "./types.js";
 
-// ============================================================================
-// MCP Response Utilities
-// ============================================================================
-
 export function createMcpResponse(text: string, isError = false): McpResponse {
   return { content: [{ type: "text", text }], isError };
 }
-
-// ============================================================================
-// Error Formatting
-// ============================================================================
 
 export function formatApiError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -26,10 +18,6 @@ export function formatApiError(error: unknown): string {
   }
   return message;
 }
-
-// ============================================================================
-// Zod to JSON Schema Converter
-// ============================================================================
 
 export function zodToJsonSchema(
   schema: z.ZodObject<z.ZodRawShape>
@@ -47,7 +35,6 @@ export function zodToJsonSchema(
     let minimum: number | undefined;
     let maximum: number | undefined;
 
-    // Handle optional wrapper
     let innerType = zodType;
     let isOptional = false;
     if (zodType._def.typeName === "ZodOptional") {
@@ -55,7 +42,6 @@ export function zodToJsonSchema(
       innerType = zodType._def.innerType;
     }
 
-    // Determine the actual type
     const typeName = innerType._def.typeName;
     switch (typeName) {
       case "ZodString":

@@ -13,19 +13,14 @@ import { config } from "../config.js";
 
 const execAsync = promisify(exec);
 
-// ============================================================================
-// Ontop Configuration Management
-// ============================================================================
-
 const ONTOP_INPUT_DIR = config.ontopInputDir;
 const PROPERTIES_FILE = path.join(ONTOP_INPUT_DIR, "ontop.properties");
 const MAPPING_FILE = path.join(ONTOP_INPUT_DIR, "mapping.ttl");
 
 let currentConfigHash: string | null = null;
 
-// Serializes config writes + container restarts so two concurrent OBDA queries
-// with different mappings can't leave Ontop running config B while request A
-// executes against it. See ensureOntopConfigured().
+// Serializes config writes + container restarts so concurrent queries with
+// different mappings can't race against the running container's config.
 let ontopConfigLock: Promise<unknown> = Promise.resolve();
 function withOntopLock<T>(fn: () => Promise<T>): Promise<T> {
   const next = ontopConfigLock.then(fn, fn);
@@ -42,9 +37,7 @@ interface DbConfig {
   ssl: boolean;
 }
 
-// IPv4 ranges that should never be reachable as a DB host from this service.
-// Blocks AWS/GCP/Azure metadata, link-local, loopback (other than localhost
-// which we rewrite to host.docker.internal), and broadcast.
+// Blocks cloud metadata, link-local, loopback, and broadcast ranges.
 const BLOCKED_HOST_PATTERNS: RegExp[] = [
   /^169\.254\./,            // link-local incl. 169.254.169.254 (cloud metadata)
   /^0\./,                   // 0.0.0.0/8
@@ -54,12 +47,10 @@ const BLOCKED_HOST_PATTERNS: RegExp[] = [
   /^::1$/,                  // IPv6 loopback
 ];
 
-// Hostnames must be valid DNS labels or IPv4 dotted-quad. Anything with
-// whitespace, control chars, or JDBC-meta chars (`;`, `?`, `&`, etc.) is rejected
-// before being interpolated into the JDBC URL.
+// DNS label or IPv4 dotted-quad — rejects JDBC-meta chars before URL interpolation.
 const HOSTNAME_RE = /^[A-Za-z0-9.\-_]{1,253}$/;
 
-/** @internal exported for unit testing */
+// Exported for unit testing.
 export function validateDbConfig(dbConfig: DbConfig): void {
   const host = (dbConfig.host || "localhost").trim();
   if (!HOSTNAME_RE.test(host)) {
@@ -74,8 +65,7 @@ export function validateDbConfig(dbConfig: DbConfig): void {
     throw new Error(`Invalid database port: ${port}`);
   }
 
-  // Database name and user must be plain identifiers; reject anything that
-  // could break out of the JDBC URL path or properties key=value parsing.
+  // Reject anything that could break the JDBC URL or properties key=value parsing.
   for (const [field, value] of [
     ["database", dbConfig.database ?? "postgres"],
     ["user", dbConfig.user ?? "postgres"],
@@ -88,7 +78,7 @@ export function validateDbConfig(dbConfig: DbConfig): void {
     }
   }
 
-  // Password may contain symbols, but newlines/null break .properties parsing.
+  // Newlines/null break .properties parsing.
   const password = dbConfig.password ?? "";
   if (typeof password !== "string" || password.length > 512) {
     throw new Error("Invalid password: must be a string ≤512 chars");
@@ -98,9 +88,7 @@ export function validateDbConfig(dbConfig: DbConfig): void {
   }
 }
 
-// Escapes a value for the right-hand side of a Java .properties line.
-// Backslashes, leading whitespace, and CR/LF must be encoded. We already
-// reject CR/LF in validateDbConfig but escape defensively in case.
+// Escape for the RHS of a Java .properties line — defense in depth on top of validateDbConfig.
 function escapePropertyValue(value: string): string {
   return value
     .replace(/\\/g, "\\\\")
@@ -109,7 +97,7 @@ function escapePropertyValue(value: string): string {
     .replace(/^[ \t]/, (m) => `\\${m}`);
 }
 
-/** @internal exported for unit testing */
+// Exported for unit testing.
 export function buildPropertiesContent(dbConfig: DbConfig): string {
   validateDbConfig(dbConfig);
 
@@ -239,10 +227,6 @@ async function ensureOntopConfigured(
   });
 }
 
-// ============================================================================
-// SPARQL Generation
-// ============================================================================
-
 const SPARQL_SYSTEM_PROMPT = `You are an expert SPARQL query generator for Ontology-Based Data Access (OBDA) with Ontop.
 
 Translate the user's natural language question into a valid SPARQL SELECT query that Ontop can execute using the provided R2RML mapping.
@@ -261,10 +245,8 @@ RULES:
 11. The output MUST be a complete query: all PREFIX lines, a full SELECT ... WHERE { ... } block, balanced braces/parentheses, and no dangling tokens (for example ending with "?" or "ex:").
 12. Output ONLY the SPARQL query text. No markdown code fences. No explanations.`;
 
-// Strips any control characters and the fence sentinel itself from
-// untrusted text so it cannot break out of the delimited block in a prompt.
-// Also normalizes line endings.
-/** @internal exported for unit testing */
+// Strips control chars and fence sentinels so untrusted text can't break out of the prompt block.
+// Exported for unit testing.
 export function sanitizeForPrompt(value: string, maxLen = 50_000): string {
   return value
     .replace(/\r\n/g, "\n")
@@ -313,8 +295,7 @@ function buildSparqlFixPrompt(
   parseError: string,
   r2rmlMapping: string
 ): string {
-  // brokenSparql and parseError both flow from upstream parsers that consumed
-  // user-controlled text — treat as untrusted and delimit.
+  // brokenSparql and parseError carry user-controlled text — treat as untrusted.
   const safeSparql = sanitizeForPrompt(brokenSparql, 20_000);
   const safeError = sanitizeForPrompt(parseError, 2_000);
   const safeMapping = sanitizeForPrompt(r2rmlMapping, 200_000);
@@ -341,14 +322,14 @@ ${PROMPT_INJECTION_REMINDER}
 Output ONLY the corrected, complete, syntactically valid SPARQL SELECT query.`;
 }
 
-/** @internal exported for unit testing */
+// Exported for unit testing.
 export function extractSparqlFromResponse(text: string): string {
   const block = text.match(/```(?:sparql)?\s*\n([\s\S]*?)\n```/i);
   if (block?.[1]) return block[1].trim();
   return text.trim();
 }
 
-/** @internal exported for unit testing */
+// Exported for unit testing.
 export function looksLikeSparql(q: string): boolean {
   const u = q.toUpperCase();
   return (
@@ -364,10 +345,6 @@ function ensureLimit(sparql: string, ast: SparqlQuery, defaultLimit = 100): stri
   }
   return sparql;
 }
-
-// ============================================================================
-// SPARQL Validation
-// ============================================================================
 
 const RR = "http://www.w3.org/ns/r2rml#";
 
@@ -389,7 +366,7 @@ interface SparqlValidationResult {
 
 const sparqlParser = new SparqlParser();
 
-/** @internal exported for unit testing */
+// Exported for unit testing.
 export function validateSyntax(sparql: string): { valid: boolean; error?: string; ast?: SparqlQuery } {
   try {
     const ast = sparqlParser.parse(sparql);
@@ -460,7 +437,7 @@ function collectNamedNodes(obj: unknown): string[] {
   return uris;
 }
 
-/** @internal exported for unit testing */
+// Exported for unit testing.
 export function crossCheckPredicates(
   sparqlUris: string[],
   mappedClasses: Set<string>,
@@ -599,10 +576,6 @@ async function validateSparql(
   return { valid: true, errors, warnings, sqlTranslation: dryRun.sql };
 }
 
-// ============================================================================
-// SPARQL Execution & Formatting
-// ============================================================================
-
 interface SparqlBinding {
   type: "uri" | "literal" | "bnode" | "typed-literal";
   value: string;
@@ -641,7 +614,7 @@ async function executeSparql(
   return (await response.json()) as SparqlResults;
 }
 
-/** @internal exported for unit testing */
+// Exported for unit testing.
 export function shortenUri(uri: string): string {
   const hashIdx = uri.lastIndexOf("#");
   if (hashIdx !== -1 && hashIdx < uri.length - 1) {
@@ -659,7 +632,7 @@ export function shortenUri(uri: string): string {
   }
 }
 
-/** @internal exported for unit testing */
+// Exported for unit testing.
 export function formatSparqlResultsAsOntologyTerms(results: SparqlResults): string {
   const vars = results.head.vars;
   const bindings = results.results.bindings;
@@ -694,16 +667,12 @@ export function formatSparqlResultsAsOntologyTerms(results: SparqlResults): stri
   return table;
 }
 
-/** @internal exported for unit testing */
+// Exported for unit testing.
 export function summarizeSparqlResults(results: SparqlResults): string {
   const count = results.results.bindings.length;
   const vars = results.head.vars;
   return `${count} result(s) with columns: ${vars.join(", ")}`;
 }
-
-// ============================================================================
-// OBDA Query Handler
-// ============================================================================
 
 export async function handleObdaQuery(
   args: Record<string, unknown>
@@ -719,7 +688,6 @@ export async function handleObdaQuery(
 
     const ontopSparqlUrl = ontopUrlOverride || config.ontopSparqlUrl;
 
-    // Step 1: Ensure Ontop is configured and running
     console.log(`[OBDA] Ensuring Ontop is configured...`);
     let ontopReady: boolean;
     try {
@@ -741,7 +709,6 @@ export async function handleObdaQuery(
       );
     }
 
-    // Step 2: Generate SPARQL from natural language (with syntax-error fix-up retry)
     console.log(`[OBDA] Generating SPARQL for: "${userQuery}"`);
     const sparqlPrompt = `${SPARQL_SYSTEM_PROMPT}\n\n${buildSparqlPrompt(
       userQuery,
@@ -764,8 +731,7 @@ export async function handleObdaQuery(
       );
     }
 
-    // Syntax fix-up: if the generated SPARQL has a parse error, retry with a
-    // targeted correction prompt (up to MAX_FIX_ATTEMPTS) before giving up.
+    // Retry with a targeted correction prompt on parse errors, up to MAX_FIX_ATTEMPTS.
     const MAX_FIX_ATTEMPTS = 2;
     let syntaxResult = validateSyntax(sparqlQuery);
 
@@ -796,7 +762,6 @@ export async function handleObdaQuery(
 
     sparqlQuery = ensureLimit(sparqlQuery, syntaxResult.ast!);
 
-    // Step 3: Validate SPARQL (syntax + predicate cross-check + dry-run)
     console.log(`[OBDA] Validating SPARQL...`);
     const validation = await validateSparql(
       sparqlQuery,
@@ -833,7 +798,6 @@ export async function handleObdaQuery(
       console.log("[OBDA] SQL reformulation not available");
     }
 
-    // Step 4: Execute SPARQL via Ontop
     console.log(`[OBDA] Executing SPARQL via Ontop...`);
     let sparqlResults: SparqlResults;
     try {
@@ -852,7 +816,6 @@ export async function handleObdaQuery(
       );
     }
 
-    // Step 5: Format results
     const summary = summarizeSparqlResults(sparqlResults);
     const resultsTable = formatSparqlResultsAsOntologyTerms(sparqlResults);
 

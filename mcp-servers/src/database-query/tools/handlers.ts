@@ -9,17 +9,12 @@ import {
   listTablesSchema,
 } from "./schemas.js";
 
-// ============================================================================
-// Table Handlers
-// ============================================================================
-
 export async function handleListTables(args: Record<string, unknown>): Promise<McpResponse> {
   try {
     const { includeViews = true, schemaName = "public", databaseId } = listTablesSchema.parse(args);
 
     const connection = dbManager.getConnection(databaseId);
 
-    // Check if database is connected
     if (!connection.adapter.isConnected()) {
       return createMcpResponse(
         `# Database Not Connected\n\n` +
@@ -112,5 +107,3 @@ export async function handleGetTableSchema(args: Record<string, unknown>): Promi
     return createMcpResponse(`Error getting table schema: ${formatApiError(error)}`, true);
   }
 }
-
-// (get-sample-queries tool removed)
