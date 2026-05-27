@@ -39,14 +39,12 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, user }) {
-      // On initial sign-in, persist user id into the token
       if (user) {
         token.id = user.id;
       }
       return token;
     },
     async session({ session, token }) {
-      // Expose user id on the client-side session
       if (session.user) {
         (session.user as any).id = token.id as string;
       }

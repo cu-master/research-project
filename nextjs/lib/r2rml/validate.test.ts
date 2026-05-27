@@ -1,9 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { validateR2rmlMapping } from "./validate";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Minimal valid R2RML mapping used as a baseline for positive tests. */
+// Minimal valid R2RML mapping used as a baseline for positive tests.
 const MINIMAL_VALID_MAPPING = `
 @prefix rr: <http://www.w3.org/ns/r2rml#> .
 @prefix ex: <http://example.org/ontology/> .
@@ -20,11 +18,7 @@ const MINIMAL_VALID_MAPPING = `
   ] .
 `;
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
 describe("validateR2rmlMapping", () => {
-
-    // ── Empty / blank input ──────────────────────────────────────────────────
 
     it("rejects an empty string with valid=false", async () => {
         const result = await validateR2rmlMapping("");
@@ -37,15 +31,11 @@ describe("validateR2rmlMapping", () => {
         expect(result.valid).toBe(false);
     });
 
-    // ── Turtle syntax ────────────────────────────────────────────────────────
-
     it("rejects invalid Turtle syntax", async () => {
         const result = await validateR2rmlMapping("this is not turtle @@@");
         expect(result.valid).toBe(false);
         expect(result.issues.some((i) => i.message.toLowerCase().includes("turtle"))).toBe(true);
     });
-
-    // ── Structural: TriplesMap ───────────────────────────────────────────────
 
     it("accepts a minimal valid R2RML mapping", async () => {
         const result = await validateR2rmlMapping(MINIMAL_VALID_MAPPING);
@@ -68,8 +58,6 @@ describe("validateR2rmlMapping", () => {
         expect(result.issues.some((i) => i.message.includes("TriplesMap"))).toBe(true);
     });
 
-    // ── Structural: subjectMap ───────────────────────────────────────────────
-
     it("errors when a TriplesMap is missing rr:subjectMap", async () => {
         const noSubjectMap = `
       @prefix rr: <http://www.w3.org/ns/r2rml#> .
@@ -82,8 +70,6 @@ describe("validateR2rmlMapping", () => {
         expect(result.valid).toBe(false);
         expect(result.issues.some((i) => i.message.includes("subjectMap"))).toBe(true);
     });
-
-    // ── Structural: logicalTable ─────────────────────────────────────────────
 
     it("errors when a TriplesMap is missing rr:logicalTable", async () => {
         const noLogicalTable = `
@@ -100,8 +86,6 @@ describe("validateR2rmlMapping", () => {
         expect(result.valid).toBe(false);
         expect(result.issues.some((i) => i.message.includes("logicalTable"))).toBe(true);
     });
-
-    // ── Warning: blank-node TriplesMap ──────────────────────────────────────
 
     it("warns when a TriplesMap uses a blank node subject", async () => {
         const blankNodeMap = `
@@ -127,8 +111,6 @@ describe("validateR2rmlMapping", () => {
             expect(result.stats.triplesMaps.length).toBeGreaterThan(0);
         }
     });
-
-    // ── Structural: parentTriplesMap ref ─────────────────────────────────────
 
     it("errors on a rr:parentTriplesMap that references a non-existent map", async () => {
         const badRef = `
@@ -191,8 +173,6 @@ describe("validateR2rmlMapping", () => {
         expect(parentErrors).toHaveLength(0);
     });
 
-    // ── DB Schema Cross-Check ────────────────────────────────────────────────
-
     it("errors when a rr:tableName does not exist in the DB schema", async () => {
         const dbSchema = {
             tables: [{ name: "Product", columns: [{ name: "product_id" }] }],
@@ -237,8 +217,6 @@ describe("validateR2rmlMapping", () => {
         expect(result.valid).toBe(true);
         expect(result.issues.filter((i) => i.level === "error")).toHaveLength(0);
     });
-
-    // ── Stats ────────────────────────────────────────────────────────────────
 
     it("populates stats.referencedTables from the mapping", async () => {
         const result = await validateR2rmlMapping(MINIMAL_VALID_MAPPING);

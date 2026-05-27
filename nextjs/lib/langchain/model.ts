@@ -12,13 +12,11 @@ interface CreateModelOptions {
   temperature?: number;
 }
 
-// ---------------------------------------------------------------------------
-// Runtime overrides — updated by PUT /api/agent-settings without server restart
-// ---------------------------------------------------------------------------
+// Runtime overrides — updated by PUT /api/agent-settings without server restart.
 let runtimeProvider: ModelProvider | null = null;
 let runtimeModel: string | null = null;
 
-// Per-provider runtime API keys (take priority over env vars when set)
+// Per-provider runtime API keys (take priority over env vars when set).
 const runtimeApiKeys: Partial<Record<ModelProvider, string>> = {};
 
 export function setRuntimeModel(provider: ModelProvider, model: string) {

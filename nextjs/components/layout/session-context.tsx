@@ -25,9 +25,6 @@ interface SessionContextType {
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
-/**
- * Extract sessionId from pathname like /c/[sessionId]
- */
 function extractSessionIdFromPath(pathname: string): string | null {
   const match = pathname.match(/^\/c\/([^/]+)/);
   return match ? match[1] : null;
@@ -52,17 +49,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Sync with URL path
   useEffect(() => {
     const pathSessionId = extractSessionIdFromPath(pathname);
     if (pathSessionId && pathSessionId !== currentSessionId) {
-      // URL has a sessionId, use it
       setCurrentSessionId(pathSessionId);
     } else if (!pathSessionId && currentSessionId) {
-      // usePathname() does not update when window.history.replaceState() is used
-      // (chat-surface uses replaceState to update the URL bar after session creation
-      // without triggering a Next.js navigation). Check the real browser URL before
-      // deciding to wipe the session — if the bar already shows /c/..., keep the session.
+      // usePathname() doesn't update on history.replaceState (used by chat-surface after
+      // session creation). Check window.location before wiping the session.
       const browserSessionId = extractSessionIdFromPath(window.location.pathname);
       if (!browserSessionId) {
         setCurrentSessionId(null);

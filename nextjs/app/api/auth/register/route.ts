@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { createUser, getUserByEmail } from "@/lib/db/users";
 
-/**
- * POST /api/auth/register
- * Register a new user with email, password, and optional name
- */
+//Register a new user with email, password, and optional name
 export async function POST(req: Request) {
   try {
     const { email, password, name } = await req.json();

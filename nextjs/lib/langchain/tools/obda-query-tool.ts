@@ -42,16 +42,7 @@ function detectMutationIntent(query: string): boolean {
   return MUTATION_INTENT_PATTERNS.some((pattern) => pattern.test(query));
 }
 
-/**
- * OBDA Orchestrator tool — thin 3-step pipeline:
- *
- * Step 1 (Interpretation) — Call Model Interpretation Server to get a
- *         conceptual definition scoped to the user's query.
- * Step 2 (Synthesis)      — Bundle user query + conceptual definition +
- *         R2RML mapping + ontology + DB config.
- * Step 3 (Execution)      — Send everything to the Database Query Server's
- *         obda-query tool which generates SPARQL, validates, and executes.
- */
+// OBDA orchestrator: bundles R2RML mapping + DB config and delegates to the Database Query Server's obda-query tool, which generates SPARQL, validates, and executes via Ontop.
 export const obdaQueryWithOntopTool = tool(
   async ({
     query: userQuery,
@@ -64,9 +55,6 @@ export const obdaQueryWithOntopTool = tool(
       );
     }
 
-    // -----------------------------------------------------------------------
-    // Load project context
-    // -----------------------------------------------------------------------
     const { projectId, userId } = getLangChainRequestContext();
     if (!projectId || !userId) {
       return "Error: No project context available. Please make sure a project is selected for this session.";
@@ -85,10 +73,6 @@ export const obdaQueryWithOntopTool = tool(
       return "Error: The project has no database connection configured. Please configure the database in project settings.";
     }
 
-    // -----------------------------------------------------------------------
-    // Execution: send everything to the Database Query Server's
-    // obda-query tool
-    // -----------------------------------------------------------------------
     try {
       const result = await callDatabaseQueryTool("obda-query", {
         query: userQuery,

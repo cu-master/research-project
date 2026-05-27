@@ -1,11 +1,6 @@
-/**
- * Shared utility for fetching and extracting text content from URLs.
- * Used by both the ingest-url API and the project get-content API.
- */
+// Shared by ingest-url API and project get-content API.
 
-/**
- * Fetches text content from a URL with a 30-second timeout.
- */
+// 30-second timeout.
 async function fetchUrlContent(url: string): Promise<string> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -42,9 +37,6 @@ async function fetchUrlContent(url: string): Promise<string> {
   }
 }
 
-/**
- * Extracts readable text content from HTML.
- */
 function extractTextFromHtml(html: string): string {
   let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
   text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
@@ -82,9 +74,6 @@ function extractTextFromHtml(html: string): string {
   return result;
 }
 
-/**
- * Checks if content appears to be HTML.
- */
 function isHtml(content: string): boolean {
   return (
     content.includes("<html") ||
@@ -93,21 +82,15 @@ function isHtml(content: string): boolean {
   );
 }
 
-/**
- * Fetches a URL and extracts clean text content.
- * For HTML pages, extracts readable text. For other content, returns as-is.
- * Cleans control characters from the result.
- */
+// For HTML pages, extracts readable text; for other content, returns as-is. Cleans control characters from the result.
 export async function fetchAndExtractUrlContent(url: string): Promise<string> {
   const raw = await fetchUrlContent(url);
 
-  // If HTML, extract text; otherwise keep raw content
   let content = raw;
   if (isHtml(raw)) {
     content = extractTextFromHtml(raw);
   }
 
-  // Clean control characters
   content = content.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, "");
 
   return content;

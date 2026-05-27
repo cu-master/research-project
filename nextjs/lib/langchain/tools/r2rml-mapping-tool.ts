@@ -122,9 +122,7 @@ Remember:
 - Output ONLY the corrected Turtle content with no markdown fences or explanation.`;
 }
 
-/**
- * Extracts clean Turtle content from LLM response that may contain markdown code blocks.
- */
+// Extracts Turtle from LLM response, unwrapping markdown code blocks if present.
 function extractTurtleContent(response: string): string {
   const turtleBlockMatch = response.match(
     /```(?:turtle|ttl|n3|sparql)?\s*\n([\s\S]*?)\n```/i
@@ -144,10 +142,7 @@ function extractTurtleContent(response: string): string {
   return response.trim();
 }
 
-/**
- * Detects prefixes used in the Turtle string but not declared with @prefix,
- * and prepends declarations for any known standard prefixes that are missing.
- */
+// Prepends standard prefix declarations for any prefix used but not declared.
 function ensurePrefixes(ttl: string): string {
   const declaredPrefixes = new Set<string>();
   for (const match of ttl.matchAll(/@prefix\s+(\w+)\s*:/g)) {
@@ -177,12 +172,7 @@ function ensurePrefixes(ttl: string): string {
 
 const MAX_RETRIES = 2;
 
-/**
- * LangChain tool that generates W3C R2RML mappings in Turtle syntax
- * by invoking the configured LLM with ontology content and database schema.
- * Includes post-processing to inject missing prefixes and a validate-and-retry
- * loop (up to MAX_RETRIES additional attempts) to recover from structural errors.
- */
+// Post-processes the LLM output to inject missing prefixes, then runs a validate-and-retry loop (up to MAX_RETRIES additional attempts) to recover from structural errors.
 export const generateR2rmlMappingTool = tool(
   async ({
     ontologyContent,
@@ -247,7 +237,7 @@ export const generateR2rmlMappingTool = tool(
       }
     }
 
-    // All retries exhausted — return the last attempt with a warning
+    // All retries exhausted — return the last attempt with a warning.
     return JSON.stringify({
       success: true,
       r2rml_mapping: lastMapping,

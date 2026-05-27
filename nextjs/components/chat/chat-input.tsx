@@ -16,30 +16,23 @@ export default function ChatInput({ placeholder, disabled, isLoading, onSubmit, 
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Auto-resize textarea to fit content
   const adjustTextareaHeight = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-    // Reset height to auto so scrollHeight recalculates correctly
     textarea.style.height = "auto";
-    // Set height to scrollHeight, capped at maxHeight (200px)
     const maxHeight = 200;
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
-    // Show scrollbar only when content exceeds max height
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   };
 
-  // Adjust height whenever the value changes
   useEffect(() => {
     adjustTextareaHeight();
   }, [value]);
 
-  // Focus textarea when loading finishes (chatbot response complete)
+  // Focus the textarea when loading transitions from true → false.
   const prevIsLoadingRef = useRef(isLoading);
   useEffect(() => {
-    // Only focus when transitioning from loading (true) to not loading (false)
     if (prevIsLoadingRef.current === true && isLoading === false && textareaRef.current) {
-      // Small delay to ensure the UI has updated
       setTimeout(() => {
         textareaRef.current?.focus();
       }, 100);
@@ -53,7 +46,6 @@ export default function ChatInput({ placeholder, disabled, isLoading, onSubmit, 
     }
     onSubmit(value, []);
     setValue("");
-    // Reset textarea height after clearing
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.overflowY = "hidden";
@@ -65,7 +57,6 @@ export default function ChatInput({ placeholder, disabled, isLoading, onSubmit, 
 
   return (
     <div className="w-full rounded-[28px] border border-gray-200 bg-gray-50 shadow-sm focus-within:border-gray-300 focus-within:shadow-md transition-all">
-      {/* Input Row */}
       <div className="flex w-full items-end gap-2 px-4 py-3">
         <textarea
           id="chat-input"

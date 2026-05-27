@@ -25,9 +25,7 @@ export default function Sidebar() {
   const userName = authSession?.user?.name || authSession?.user?.email?.split("@")[0] || "User";
   const userInitial = userName.charAt(0).toUpperCase();
 
-  // Merge active + archived into one list sorted by most recent activity.
-  // For archived sessions, use the later of updated_at and archived_at so
-  // a just-archived session stays at the top.
+  // For archived sessions, sort by max(updated_at, archived_at) so a just-archived chat stays on top.
   const allSessions = useMemo(() => {
     const merged = [...activeSessions, ...archivedSessions];
     merged.sort((a, b) => {
@@ -44,16 +42,13 @@ export default function Sidebar() {
     return merged;
   }, [activeSessions, archivedSessions]);
 
-  // Track which sessions the user actually sent messages in during this page session.
-  // Prevents handleNewChat from archiving sessions the user was merely viewing.
+  // Tracks sessions the user actually sent messages in — prevents archiving merely-viewed sessions.
   const sessionsWithActivity = useRef(new Set<string>());
 
-  // AbortController ref to cancel in-flight loadAllSessions fetches,
-  // preventing stale responses from overwriting newer data.
+  // Cancels in-flight loadAllSessions fetches so stale responses can't overwrite newer data.
   const loadAbortRef = useRef<AbortController | null>(null);
 
   const handleNewChat = async () => {
-    // Check for unsaved work
     if (hasUnsavedWork && currentSessionId) {
       const confirmed = window.confirm(
         "You have an active query. Are you sure you want to start over?"
@@ -63,18 +58,16 @@ export default function Sidebar() {
       }
     }
 
-    // Clear UI immediately so the chat surface resets without waiting for network
+    // Reset UI immediately; defer cleanup so the surface doesn't wait on network.
     const sessionIdToArchive = currentSessionId;
     router.replace("/", { scroll: false });
     setCurrentSessionId(null);
 
-    // Run cleanup in the background — do not await before clearing UI
     (async () => {
       try {
         let shouldRefreshSessions = false;
 
-        // Archive current session only if the user actually sent messages in it
-        // (not if they were merely viewing an old session from history)
+        // Only archive if the user actually sent messages — viewing-only sessions stay active.
         if (sessionIdToArchive && sessionsWithActivity.current.has(sessionIdToArchive)) {
           const sessionResponse = await fetch(`/api/sessions?sessionId=${sessionIdToArchive}`);
           if (sessionResponse.ok) {
@@ -94,7 +87,6 @@ export default function Sidebar() {
           sessionsWithActivity.current.delete(sessionIdToArchive);
         }
 
-        // Clear the model interpretation store
         await fetch("/api/sessions/clear-store", { method: "POST" });
 
         if (shouldRefreshSessions) {
@@ -107,8 +99,6 @@ export default function Sidebar() {
     })();
   };
 
-  // Load both active and archived sessions.
-  // Cancels any in-flight request so only the latest response is applied.
   const loadAllSessions = useCallback(async () => {
     loadAbortRef.current?.abort();
     const controller = new AbortController();
@@ -135,15 +125,13 @@ export default function Sidebar() {
     }
   }, []);
 
-  // Load sessions on mount
   useEffect(() => {
     loadAllSessions();
   }, [loadAllSessions]);
 
-  // Refresh sessions when currentSessionId changes (new session created or switched)
   useEffect(() => {
     if (currentSessionId) {
-      // Small delay to ensure database has been updated with messages
+      // Delay so the DB has time to persist the new messages before we refetch.
       const timer = setTimeout(() => {
         loadAllSessions();
       }, 1000);
@@ -151,7 +139,6 @@ export default function Sidebar() {
     }
   }, [currentSessionId, loadAllSessions]);
 
-  // Listen for session update events from chat surface
   useEffect(() => {
     const handleSessionUpdate = (event: Event) => {
       const detail = (event as CustomEvent).detail;
@@ -178,34 +165,26 @@ export default function Sidebar() {
     }
 
     try {
-      // Restore session: load messages
       const response = await fetch("/api/sessions/restore", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId }),
       });
 
-      if (response.ok) {
-        // Session restored successfully
-        setCurrentSessionId(sessionId);
-        // Navigate to /c/[sessionId] (replace to avoid back button issues)
-        router.replace(`/c/${sessionId}`, { scroll: false });
-      } else {
+      if (!response.ok) {
         console.error("Failed to restore session");
-        // Still switch to the session even if restore fails
-        setCurrentSessionId(sessionId);
-        router.replace(`/c/${sessionId}`, { scroll: false });
       }
     } catch (error) {
       console.error("Error restoring session:", error);
-      // Still switch to the session even if restore fails
+    } finally {
+      // Switch to the session regardless — restore failure shouldn't block navigation.
       setCurrentSessionId(sessionId);
       router.replace(`/c/${sessionId}`, { scroll: false });
     }
   };
 
   const handleDeleteClick = (e: React.MouseEvent, sessionId: string) => {
-    e.stopPropagation(); // Prevent session click
+    e.stopPropagation();
     setDeleteConfirmSession(sessionId);
   };
 
@@ -221,19 +200,12 @@ export default function Sidebar() {
       });
 
       if (response.ok) {
-        // If deleting the active session, clear chat and reset to new chat state
         if (isActiveSession) {
-          // Clear the model interpretation store
-          await fetch("/api/sessions/clear-store", {
-            method: "POST",
-          });
-
-          // Clear current session
+          await fetch("/api/sessions/clear-store", { method: "POST" });
           setCurrentSessionId(null);
           router.replace("/", { scroll: false });
         }
 
-        // Refresh sessions list
         await loadAllSessions();
         await refreshSessions();
       } else {
@@ -258,7 +230,6 @@ export default function Sidebar() {
       className={`fixed inset-y-0 left-0 z-50 hidden flex-col bg-gray-50 text-gray-900 border-r border-gray-200 md:flex transition-all duration-300 ease-in-out overflow-x-hidden ${isCollapsed ? "w-16" : "w-64"
         }`}
     >
-      {/* New Chat & Projects navigation */}
       <div className="px-2 pt-3 pb-1 flex flex-col gap-0.5">
         <button
           onClick={handleNewChat}
@@ -289,7 +260,6 @@ export default function Sidebar() {
         </Link>
       </div>
 
-      {/* Chat history */}
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {!isCollapsed && allSessions.length > 0 && (
           <div className="mb-4 px-2 text-xs font-semibold text-gray-500">
@@ -340,7 +310,6 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
       {deleteConfirmSession && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
@@ -376,7 +345,6 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* Footer with user and collapse button */}
       <div className="border-t border-gray-200 p-4">
         {!isCollapsed ? (
           <div className="flex flex-col gap-2">

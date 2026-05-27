@@ -1,13 +1,10 @@
 import { DATABASE_QUERY_BASE_URL, mcpFetchHeaders } from "../config";
 import { McpToolResponse } from "../types";
 
-// Track which project databases have been registered in this process lifetime
+// Tracks which project databases have been registered in this process lifetime.
 const registeredDatabases = new Set<string>();
 
-/**
- * Ensure a project's database is registered and connected on the MCP server.
- * Uses the project ID as the database ID. Skips if already registered.
- */
+// Uses the project ID as the database ID; skips if already registered.
 export async function ensureProjectDatabase(project: {
   id: string;
   db_type: string | null;

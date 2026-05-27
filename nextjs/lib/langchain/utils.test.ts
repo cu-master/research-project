@@ -7,10 +7,6 @@ import {
     convertToLangChainMessage,
 } from "./utils";
 
-// ============================================================================
-// extractText
-// ============================================================================
-
 describe("extractText", () => {
     it("returns empty string for null", () => {
         expect(extractText(null)).toBe("");
@@ -63,10 +59,6 @@ describe("extractText", () => {
     });
 });
 
-// ============================================================================
-// serializeToolInput
-// ============================================================================
-
 describe("serializeToolInput", () => {
     it("passes a string through unchanged", () => {
         expect(serializeToolInput("raw")).toBe("raw");
@@ -90,10 +82,6 @@ describe("serializeToolInput", () => {
     });
 });
 
-// ============================================================================
-// buildMessageContent
-// ============================================================================
-
 describe("buildMessageContent", () => {
     it("trims leading and trailing whitespace", () => {
         expect(buildMessageContent("  hello  ")).toBe("hello");
@@ -107,10 +95,6 @@ describe("buildMessageContent", () => {
         expect(buildMessageContent("clean")).toBe("clean");
     });
 });
-
-// ============================================================================
-// convertToLangChainMessage
-// ============================================================================
 
 describe("convertToLangChainMessage", () => {
     it("converts a user message to HumanMessage", () => {

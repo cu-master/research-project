@@ -28,33 +28,20 @@ interface StatusResponse {
   timestamp: string;
 }
 
-// Background poll: tight enough that a stopped container surfaces within
-// ~10 s without hammering the upstream health endpoints.
+// Tight enough that a stopped container surfaces within ~10 s.
 const POLL_INTERVAL_MS = 10_000;
 
-/**
- * FR-01: Top-of-page connection status row.
- *
- * Shows a green/red dot per Tier 3 MCP server plus the active project's
- * database. When the database is configured but unreachable, an offline
- * banner appears warning the user that data queries are unavailable while
- * Model Interpretation mode still works.
- *
- * Refresh strategy: poll every 10 s in the background, AND immediately
- * re-poll whenever the tab regains focus or visibility (so flipping back to
- * the app after stopping a container shows the failure right away — no need
- * to refresh the page).
- */
+// Top-of-page status row + offline banners. Polls every 10 s and re-polls on focus/visibility/online
+// so a stopped container is reflected without a page refresh.
 export default function ConnectionStatus() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  // Guards against state updates from a stale fetch that resolves after the
-  // component has unmounted or a newer poll has already returned.
+  // Guard against stale fetches resolving after unmount or after a newer poll returned.
   const cancelledRef = useRef(false);
   const inFlightRef = useRef(false);
 
   const poll = useCallback(async () => {
-    if (inFlightRef.current) return; // de-dupe overlapping polls
+    if (inFlightRef.current) return;
     inFlightRef.current = true;
     try {
       const response = await fetch("/api/servers/status", { cache: "no-store" });

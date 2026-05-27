@@ -32,11 +32,7 @@ const SCOPE_SUBTYPES = new Set([
   "nonexistent_field",
 ]);
 
-/**
- * Resolve refusal track for a negative case. `refusalTrack` on the expectation wins;
- * otherwise derive from subtype. Defaults to `scope` when the subtype is unknown
- * (lenient fallback: a stricter classification should be set explicitly).
- */
+// Resolves refusal track: explicit `refusalTrack` wins, else derive from subtype, else default to `scope` (lenient fallback — stricter classification must be set explicitly).
 export function resolveRefusalTrack(benchmarkCase: BenchmarkCase): RefusalTrack | null {
   if (benchmarkCase.category !== "negative") return null;
   if (benchmarkCase.expectation.refusalTrack) return benchmarkCase.expectation.refusalTrack;
@@ -80,10 +76,7 @@ export interface ResultArtifact {
   resultRowCount: number | null;
 }
 
-/**
- * Extract a structured result artifact from a chat response. Single source of truth
- * for what the model returned: callers no longer compute these independently.
- */
+// Single source of truth for what the model returned; callers no longer compute these independently.
 export function extractResultArtifact(responseText: string): ResultArtifact {
   const tableRows = extractTableRows(responseText);
   if (tableRows) {
@@ -651,12 +644,7 @@ function splitTableLine(line: string): string[] {
     .map((cell) => cell.trim());
 }
 
-/**
- * Strict signature match. Returns true only when the actual result is structured
- * (markdown table, JSON block, or normalized inline scalar) AND every expected row is
- * covered by an actual row. No fallback to scanning raw response text — that would let
- * models pass without producing a real result set.
- */
+// Strict: returns true only when actual is structured AND every expected row is covered by an actual row. No fallback to scanning raw response text — that would let models pass without producing a real result set.
 export function matchesExpectedSignature(
   expectedResultSignature: string,
   resultSignature: string | null
@@ -676,10 +664,7 @@ export function matchesExpectedSignature(
   return false;
 }
 
-/**
- * Ordered match: each expected row must appear at the same index in the actual rows
- * (actual may have extra rows after; allows "first N" verification).
- */
+// Ordered match: each expected row must appear at the same index in actual rows (actual may have extra rows after; allows "first N" verification).
 export function matchesOrderedSignature(
   expectedResultSignature: string,
   orderedResultSignature: string | null
@@ -859,10 +844,7 @@ function normalizeJsonValue(value: unknown): unknown {
   return value;
 }
 
-/**
- * Like `normalizeJsonValue` but preserves array element order (only sorts object keys).
- * Used for ordered signatures so ordering checks can be applied.
- */
+// Like `normalizeJsonValue` but preserves array element order (only sorts object keys); used for ordered signatures.
 function normalizeJsonValueRecordOnly(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(normalizeJsonValueRecordOnly);

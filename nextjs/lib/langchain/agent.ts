@@ -86,10 +86,9 @@ RULES:
 - For project overviews use 'summarize_content'
 - For understanding R2RML mappings use 'explain_mapping'`;
 
-// Lazy-initialized agent instance
 let agentInstance: Awaited<ReturnType<typeof createAgent>> | null = null;
 
-/** Invalidate the cached agent — called after provider/model changes */
+// Invalidate the cached agent — called after provider/model changes.
 export function resetAgent() {
   agentInstance = null;
 }

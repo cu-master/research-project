@@ -4,10 +4,6 @@ import { callDatabaseQueryTool, ensureProjectDatabase } from "../clients";
 import { getLangChainRequestContext } from "../request-context";
 import { getProject } from "@/lib/db/projects";
 
-// ============================================================================
-// Helper: resolve databaseId from the current project's DB config
-// ============================================================================
-
 async function resolveProjectDatabaseId(): Promise<string | null> {
   const { projectId, userId } = getLangChainRequestContext();
   if (!projectId || !userId) return null;
@@ -18,10 +14,6 @@ async function resolveProjectDatabaseId(): Promise<string | null> {
   return ensureProjectDatabase({ ...project, db_ssl: project.db_ssl ?? false } as any);
 }
 
-
-// ============================================================================
-// List Tables Tool
-// ============================================================================
 
 const listTablesArgsSchema = z.object({
   includeViews: z.boolean().optional().describe("Whether to include views in the list (default: true)"),
@@ -45,10 +37,6 @@ export const listTablesTool = tool(
     schema: listTablesArgsSchema as z.ZodType<z.infer<typeof listTablesArgsSchema>>,
   }
 );
-
-// ============================================================================
-// Get Table Schema Tool
-// ============================================================================
 
 const getTableSchemaArgsSchema = z.object({
   tableName: z.string().min(1, "Table name cannot be empty").describe("Name of the table to get schema for"),

@@ -4,10 +4,6 @@ import { callModelInterpretationTool } from "../clients";
 import { getLangChainRequestContext } from "../request-context";
 import { getProject } from "@/lib/db/projects";
 
-// ============================================================================
-// Shared helper: load and validate project content
-// ============================================================================
-
 type ProjectResult =
   | { ok: true; project: NonNullable<Awaited<ReturnType<typeof getProject>>> }
   | { ok: false; error: string };
@@ -26,10 +22,6 @@ async function loadProjectContent(): Promise<ProjectResult> {
 
   return { ok: true, project };
 }
-
-// ============================================================================
-// Answer Query
-// ============================================================================
 
 const answerQuerySchema = z.object({
   query: z
@@ -63,10 +55,6 @@ export const answerQueryTool = tool(
   }
 );
 
-// ============================================================================
-// Summarize Content
-// ============================================================================
-
 export const summarizeContentTool = tool(
   async () => {
     const result = await loadProjectContent();
@@ -88,10 +76,6 @@ export const summarizeContentTool = tool(
     schema: z.object({}),
   }
 );
-
-// ============================================================================
-// Explain Mapping
-// ============================================================================
 
 export const explainMappingTool = tool(
   async () => {
@@ -115,10 +99,6 @@ export const explainMappingTool = tool(
     schema: z.object({}),
   }
 );
-
-// ============================================================================
-// Compare Schema & Mapping
-// ============================================================================
 
 export const compareSchemaMappingTool = tool(
   async () => {
@@ -152,10 +132,6 @@ export const compareSchemaMappingTool = tool(
     schema: z.object({}),
   }
 );
-
-// ============================================================================
-// Suggest Queries
-// ============================================================================
 
 export const suggestQueriesTool = tool(
   async () => {

@@ -7,11 +7,7 @@ import type { ModelProvider } from "@/lib/langchain/types";
 
 const VALID_PROVIDERS: ModelProvider[] = ["google", "anthropic", "openai", "groq"];
 
-/**
- * GET /api/agent-settings
- * Returns the agent config for the authenticated user.
- * On cold start (runtime is default) it reads from the DB and rehydrates the runtime.
- */
+// GET /api/agent-settings — returns the user's agent config; rehydrates runtime from DB on cold start.
 export async function GET() {
   const userId = await getAuthUserId();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -20,7 +16,6 @@ export async function GET() {
     const { provider: rp } = getRuntimeConfig();
     const isDefault = !rp || rp === (process.env.LLM_PROVIDER ?? "google");
     if (isDefault) {
-      // Cold start — rehydrate from DB
       const saved = await getUserAgentConfig(userId);
       if (saved) {
         setRuntimeModel(saved.provider as ModelProvider, saved.model);
@@ -35,10 +30,7 @@ export async function GET() {
   return NextResponse.json(getRuntimeConfig());
 }
 
-/**
- * PUT /api/agent-settings
- * Updates provider, model, and optional API key in both the runtime and the DB.
- */
+// PUT /api/agent-settings — updates provider/model/apiKey in both runtime and DB.
 export async function PUT(request: Request) {
   const userId = await getAuthUserId();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -69,12 +61,10 @@ export async function PUT(request: Request) {
   const cleanModel = model.trim();
   const cleanKey = apiKey?.trim() || undefined;
 
-  // 1. Update runtime immediately
   setRuntimeModel(provider as ModelProvider, cleanModel);
   if (cleanKey) setRuntimeApiKey(provider as ModelProvider, cleanKey);
   resetAgent();
 
-  // 2. Persist to the agent_configs table (upsert)
   try {
     await upsertUserAgentConfig(userId, {
       provider,
@@ -83,8 +73,8 @@ export async function PUT(request: Request) {
     });
     console.log(`[AgentSettings] Saved for user ${userId}: provider=${provider}, model=${cleanModel}, apiKey=${cleanKey ? "[set]" : "[env]"}`);
   } catch (err) {
+    // Runtime was already updated — DB failure is non-fatal.
     console.error("[AgentSettings] Failed to persist to DB:", err);
-    // Runtime was already updated — still return success
   }
 
   return NextResponse.json({

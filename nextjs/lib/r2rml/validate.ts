@@ -27,13 +27,7 @@ interface DbSchemaForValidation {
   }[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Internal helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Parse Turtle content and return quads or a syntax error.
- */
+// Parse Turtle content; returns quads or a syntax error.
 function parseTurtle(
   ttl: string
 ): Promise<{ quads: Quad[]; error?: string }> {
@@ -61,7 +55,7 @@ function parseTurtle(
   });
 }
 
-/** Return all object values for a given subject + predicate pair. */
+// Return all object values for a given subject + predicate pair.
 function getObjects(
   quads: Quad[],
   subject: string,
@@ -72,7 +66,7 @@ function getObjects(
     .map((q) => q.object.value);
 }
 
-/** Return all unique subjects that have a given predicate (any object). */
+// Return all unique subjects that have a given predicate (any object).
 function getSubjectsWithPredicate(
   quads: Quad[],
   predicate: string
@@ -84,27 +78,13 @@ function getSubjectsWithPredicate(
   ];
 }
 
-/**
- * Extract column names from an rr:template string, e.g.
- * "http://example.org/{customer_id}/{name}" → ["customer_id", "name"]
- */
+// Extract column names from an rr:template, e.g. "http://example.org/{customer_id}/{name}" → ["customer_id", "name"].
 function extractTemplateColumns(template: string): string[] {
   const matches = template.match(/\{([^}]+)\}/g);
   return matches ? matches.map((m) => m.slice(1, -1)) : [];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main validator
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Validate an R2RML mapping string.
- *
- * Performs three levels of validation:
- * 1. Turtle syntax parsing
- * 2. R2RML vocabulary structure checks
- * 3. (Optional) Cross-reference against a physical database schema
- */
+// Three levels: Turtle syntax → R2RML vocabulary structure → optional DB-schema cross-reference.
 export async function validateR2rmlMapping(
   ttl: string,
   dbSchema?: DbSchemaForValidation | null
@@ -125,7 +105,7 @@ export async function validateR2rmlMapping(
     };
   }
 
-  // ── Level 1: Turtle Syntax ─────────────────────────────────────────────────
+  // Level 1: Turtle syntax.
   const { quads, error } = await parseTurtle(ttl);
 
   if (error) {
@@ -146,9 +126,7 @@ export async function validateR2rmlMapping(
     };
   }
 
-  // ── Level 2: R2RML Structure ───────────────────────────────────────────────
-
-  // Collect all TriplesMap subjects
+  // Level 2: R2RML structure.
   const triplesMapSubjects = getSubjectsWithPredicate(quads, `${RR}logicalTable`);
   const typedTriplesMaps = quads
     .filter(
@@ -169,10 +147,9 @@ export async function validateR2rmlMapping(
     });
   }
 
-  // Build a set of all known TriplesMap URIs for cross-reference validation
   const knownTriplesMapUris = new Set(allTriplesMaps);
 
-  // Track (table → Set<column>) for scoped DB cross-checking later
+  // Track (table → Set<column>) for scoped DB cross-checking later.
   const tableToColumns = new Map<string, Set<string>>();
 
   const allReferencedTables: string[] = [];
@@ -180,7 +157,6 @@ export async function validateR2rmlMapping(
 
   for (const tm of allTriplesMaps) {
 
-    // ── IMPROVEMENT 3: Warn on blank-node TriplesMap subjects ──────────────
     if (tm.startsWith("_:")) {
       issues.push({
         level: "warning",
@@ -188,7 +164,6 @@ export async function validateR2rmlMapping(
       });
     }
 
-    // ── rr:logicalTable ────────────────────────────────────────────────────
     const logicalTables = getObjects(quads, tm, `${RR}logicalTable`);
     if (logicalTables.length === 0) {
       issues.push({
@@ -197,7 +172,6 @@ export async function validateR2rmlMapping(
       });
     }
 
-    // Resolve the table name(s) for this TriplesMap
     const tmTableNames: string[] = [];
     for (const lt of logicalTables) {
       const tableNames = getObjects(quads, lt, `${RR}tableName`);
@@ -214,14 +188,13 @@ export async function validateR2rmlMapping(
       allReferencedTables.push(...tableNames);
     }
 
-    // Initialise column sets for each referenced table
     for (const tn of tmTableNames) {
       if (!tableToColumns.has(tn)) {
         tableToColumns.set(tn, new Set());
       }
     }
 
-    // Helper: record a column against the tables of this TriplesMap
+    // Record a column against the tables of this TriplesMap.
     const recordColumn = (col: string) => {
       allReferencedColumns.push(col);
       for (const tn of tmTableNames) {
@@ -229,7 +202,6 @@ export async function validateR2rmlMapping(
       }
     };
 
-    // ── IMPROVEMENT 6: Missing rr:subjectMap is now an ERROR ──────────────
     const subjectMaps = getObjects(quads, tm, `${RR}subjectMap`);
     if (subjectMaps.length === 0) {
       issues.push({
@@ -238,7 +210,6 @@ export async function validateR2rmlMapping(
       });
     }
 
-    // ── IMPROVEMENT 2: Warn if subjectMap has no rr:class ─────────────────
     for (const sm of subjectMaps) {
       const classes = getObjects(quads, sm, `${RR}class`);
       if (classes.length === 0) {
@@ -248,17 +219,14 @@ export async function validateR2rmlMapping(
         });
       }
 
-      // Collect columns from subjectMap templates
       const templates = getObjects(quads, sm, `${RR}template`);
       for (const tpl of templates) {
         extractTemplateColumns(tpl).forEach(recordColumn);
       }
 
-      // Collect columns declared directly on subjectMap
       getObjects(quads, sm, `${RR}column`).forEach(recordColumn);
     }
 
-    // ── predicateObjectMaps ────────────────────────────────────────────────
     const poms = getObjects(quads, tm, `${RR}predicateObjectMap`);
     for (const pom of poms) {
       const predicates = [
@@ -284,15 +252,12 @@ export async function validateR2rmlMapping(
       }
 
       for (const om of objectMaps) {
-        // Columns declared directly
         getObjects(quads, om, `${RR}column`).forEach(recordColumn);
 
-        // ── IMPROVEMENT 4: Extract columns from objectMap templates ────────
         getObjects(quads, om, `${RR}template`).forEach((tpl) =>
           extractTemplateColumns(tpl).forEach(recordColumn)
         );
 
-        // ── IMPROVEMENT 5: Validate rr:parentTriplesMap references ─────────
         const parentRefs = getObjects(quads, om, `${RR}parentTriplesMap`);
         for (const parentUri of parentRefs) {
           if (!knownTriplesMapUris.has(parentUri)) {
@@ -305,11 +270,10 @@ export async function validateR2rmlMapping(
           }
         }
 
-        // Also validate joinCondition child/parent columns
         const joinConditions = getObjects(quads, om, `${RR}joinCondition`);
         for (const jc of joinConditions) {
           getObjects(quads, jc, `${RR}child`).forEach(recordColumn);
-          // parent columns belong to the parent table — just track globally
+          // Parent columns belong to the parent table — track globally only.
           getObjects(quads, jc, `${RR}parent`).forEach((c) =>
             allReferencedColumns.push(c)
           );
@@ -321,13 +285,13 @@ export async function validateR2rmlMapping(
   stats.referencedTables = [...new Set(allReferencedTables)];
   stats.referencedColumns = [...new Set(allReferencedColumns)];
 
-  // ── Level 3: Database Schema Cross-Check ──────────────────────────────────
+  // Level 3: optional DB-schema cross-check.
   if (dbSchema && dbSchema.tables && dbSchema.tables.length > 0) {
     const dbTableNames = new Set(
       dbSchema.tables.map((t) => t.name.toLowerCase())
     );
 
-    // Build a table → column lookup for scoped column checking
+    // Table → column lookup for scoped column checking.
     const dbColumnsByTable = new Map<string, Set<string>>();
     for (const table of dbSchema.tables) {
       dbColumnsByTable.set(
@@ -336,7 +300,6 @@ export async function validateR2rmlMapping(
       );
     }
 
-    // ── Check that every rr:tableName exists in the DB ─────────────────────
     for (const tableName of stats.referencedTables) {
       const cleaned = tableName.replace(/^"|"$/g, "").toLowerCase();
       if (!dbTableNames.has(cleaned)) {
@@ -347,15 +310,13 @@ export async function validateR2rmlMapping(
       }
     }
 
-    // ── IMPROVEMENT 1: Scoped column → table check (instead of global bag) ─
-    // For each table referenced by a TriplesMap, check only the columns that
-    // were collected under that specific TriplesMap's table.
+    // Scoped column→table check: for each table referenced by a TriplesMap, only check columns collected under that TriplesMap's table (avoids cross-table false positives from a global column bag).
     for (const [tableName, columns] of tableToColumns.entries()) {
       const cleanedTable = tableName.replace(/^"|"$/g, "").toLowerCase();
       const dbCols = dbColumnsByTable.get(cleanedTable);
 
       if (!dbCols) {
-        // Table itself doesn't exist — already reported above, skip columns
+        // Table itself doesn't exist — already reported above; skip columns.
         continue;
       }
 

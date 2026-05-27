@@ -19,9 +19,6 @@ export interface CreateProjectInput {
   alignment_result?: any;
 }
 
-/**
- * Create a new project for a user
- */
 export async function createProject(
   userId: string,
   input: CreateProjectInput
@@ -50,9 +47,6 @@ export async function createProject(
   return result;
 }
 
-/**
- * Get all projects for a user, ordered by most recently updated
- */
 export async function getProjectsByUser(userId: string): Promise<Project[]> {
   const result = await prisma.project.findMany({
     where: { user_id: userId },
@@ -61,9 +55,7 @@ export async function getProjectsByUser(userId: string): Promise<Project[]> {
   return result;
 }
 
-/**
- * Get a project by ID (only if owned by user)
- */
+// Only returns the project if owned by the given user.
 export async function getProject(
   projectId: string,
   userId: string
@@ -74,15 +66,12 @@ export async function getProject(
   return result;
 }
 
-/**
- * Update a project (only if owned by user)
- */
+// Only updates if owned by the given user.
 export async function updateProject(
   projectId: string,
   userId: string,
   input: Partial<CreateProjectInput>
 ): Promise<Project | null> {
-  // First, verify the project exists and is owned by the user
   const existing = await prisma.project.findFirst({
     where: { id: projectId, user_id: userId }
   });
@@ -114,9 +103,7 @@ export async function updateProject(
   return result;
 }
 
-/**
- * Delete a project (only if owned by user)
- */
+// Only deletes if owned by the given user.
 export async function deleteProject(
   projectId: string,
   userId: string
@@ -132,9 +119,7 @@ export async function deleteProject(
   return true;
 }
 
-/**
- * Update a project's content text (only if owned by user)
- */
+// Only updates if owned by the given user.
 export async function updateProjectContent(
   projectId: string,
   userId: string,

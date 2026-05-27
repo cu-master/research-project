@@ -1,9 +1,7 @@
 import { getUserAgentConfig } from "@/lib/db/agent-config";
 import type { ModelProvider } from "@/lib/langchain/types";
 
-/**
- * API key to use for a provider: per-user override when saved config matches provider, else env.
- */
+// Per-user override when saved config matches provider, else env.
 export async function getEffectiveApiKeyForProvider(
   userId: string,
   provider: ModelProvider

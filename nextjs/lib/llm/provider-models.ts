@@ -186,9 +186,7 @@ async function fetchAnthropicModels(apiKey: string): Promise<ModelRow[]> {
   return all;
 }
 
-/**
- * Fetches chat-capable models from the provider API, or falls back to a static list.
- */
+// Fetches chat-capable models from the provider API, or falls back to a static list.
 export async function listModelsForProvider(
   provider: ModelProvider,
   apiKey: string | undefined
