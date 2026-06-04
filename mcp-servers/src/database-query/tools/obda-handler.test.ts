@@ -1,14 +1,16 @@
 import { describe, it, expect } from "vitest";
+import { buildPropertiesContent } from "./ontop-config.js";
 import {
-    buildPropertiesContent,
     extractSparqlFromResponse,
     looksLikeSparql,
     validateSyntax,
     crossCheckPredicates,
+} from "./sparql-validation.js";
+import {
     shortenUri,
     formatSparqlResultsAsOntologyTerms,
     summarizeSparqlResults,
-} from "./obda-handler.js";
+} from "./sparql-results.js";
 
 describe("buildPropertiesContent", () => {
     const baseConfig = {

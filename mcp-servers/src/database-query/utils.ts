@@ -37,8 +37,10 @@ export function extractSqlFromResponse(response: string): string {
   return cleanSql(sql);
 }
 
-// LLM-generated SQL is parsed into an AST and rejected unless it's a single SELECT statement.
-// Enforcement point for the NFR-02 SQL-injection guard — must run before driver execution.
+// Parses SQL into an AST and rejects anything that isn't a single SELECT statement.
+// NOTE: not on the live query path — production queries go through SPARQL/Ontop (see obda-handler.ts),
+// and write protection is enforced at the DB level by the read-only role (NFR-01). This is retained,
+// with utils.test.ts, as the NFR-02 SELECT-only AST guard (defense-in-depth for any direct-SQL path).
 
 export interface SqlValidationResult {
   valid: boolean;

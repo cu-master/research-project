@@ -4,6 +4,7 @@ import { config } from "./config.js";
 import { dbManager } from "./manager.js";
 import { tools, toolMap } from "./tools/index.js";
 import { bearerAuth, rateLimit } from "../shared/index.js";
+import { log } from "../shared/logger.js";
 
 export const app = express();
 
@@ -132,7 +133,9 @@ app.post("/databases", async (req: Request, res: Response) => {
     // Registered but not connected — unregister and re-register.
     try {
       await dbManager.unregisterDatabase(id);
-    } catch {}
+    } catch (err) {
+      log.warn(`[db] Failed to unregister stale connection '${id}' before re-registering:`, err);
+    }
   }
 
   try {
@@ -157,11 +160,11 @@ app.post("/databases", async (req: Request, res: Response) => {
 
     await dbManager.connectDatabase(id);
     dbManager.setDefaultConnection(id);
-    console.log(`  ✓ Database registered and connected: ${name || id} (${id})`);
+    log.info(`  ✓ Database registered and connected: ${name || id} (${id})`);
     res.json({ status: "connected", id });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`  ✗ Failed to register database ${id}: ${message}`);
+    log.error(`  ✗ Failed to register database ${id}: ${message}`);
     res.status(500).json({ error: message });
   }
 });
@@ -170,7 +173,7 @@ app.delete("/databases/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     await dbManager.unregisterDatabase(id);
-    console.log(`  ✓ Database unregistered: ${id}`);
+    log.info(`  ✓ Database unregistered: ${id}`);
     res.json({ status: "unregistered", id });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -179,7 +182,7 @@ app.delete("/databases/:id", async (req: Request, res: Response) => {
 });
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error("Server error:", err);
+  log.error("Server error:", err);
   res.status(500).json({ error: "Internal server error" });
 });
 
@@ -194,22 +197,22 @@ export function startServer(): void {
             ? config.openaiModel
             : config.googleModel;
 
-    console.log(`Server running on http://localhost:${config.port}`);
-    console.log(`AI Provider: ${config.provider}`);
-    console.log(`LLM Model: ${activeModel}\n`);
-    console.log(`Available endpoints:`);
-    console.log(`  GET  /health - Health check`);
-    console.log(`  GET  /tools - List all tools`);
-    console.log(`  GET  /tools/:name - Get tool info`);
-    console.log(`  POST /tools/:name/call - Call a tool`);
-    console.log(`  POST /mcp/call-tool - MCP-compatible tool call`);
-    console.log(`  POST /mcp/list-tools - MCP-compatible tool listing`);
-    console.log(`  GET  /databases - List connected databases`);
-    console.log(`  POST /databases - Register & connect a database`);
-    console.log(`  DELETE /databases/:id - Unregister a database`);
-    console.log(`\nAvailable tools:`);
+    log.info(`Server running on http://localhost:${config.port}`);
+    log.info(`AI Provider: ${config.provider}`);
+    log.info(`LLM Model: ${activeModel}\n`);
+    log.info(`Available endpoints:`);
+    log.info(`  GET  /health - Health check`);
+    log.info(`  GET  /tools - List all tools`);
+    log.info(`  GET  /tools/:name - Get tool info`);
+    log.info(`  POST /tools/:name/call - Call a tool`);
+    log.info(`  POST /mcp/call-tool - MCP-compatible tool call`);
+    log.info(`  POST /mcp/list-tools - MCP-compatible tool listing`);
+    log.info(`  GET  /databases - List connected databases`);
+    log.info(`  POST /databases - Register & connect a database`);
+    log.info(`  DELETE /databases/:id - Unregister a database`);
+    log.info(`\nAvailable tools:`);
     for (const tool of tools) {
-      console.log(`  - ${tool.name}: ${tool.description.substring(0, 50)}...`);
+      log.info(`  - ${tool.name}: ${tool.description.substring(0, 50)}...`);
     }
   });
 }

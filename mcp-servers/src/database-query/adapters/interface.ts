@@ -11,6 +11,5 @@ export interface DatabaseAdapter {
   getTableColumns(tableName: string, schemaName?: string): Promise<TableColumn[]>;
   getTableForeignKeys(tableName: string, schemaName?: string): Promise<ForeignKey[]>;
   getTableConstraints(tableName: string, schemaName?: string): Promise<Constraint[]>;
-  buildSchemaContext(): Promise<string>;
 }
 

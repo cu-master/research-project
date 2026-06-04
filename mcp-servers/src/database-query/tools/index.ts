@@ -37,7 +37,3 @@ export const tools: ToolDefinition[] = [
 ];
 
 export const toolMap = new Map(tools.map((t) => [t.name, t]));
-
-export * from "./schemas.js";
-export * from "./handlers.js";
-export * from "./obda-handler.js";

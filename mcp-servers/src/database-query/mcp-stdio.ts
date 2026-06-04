@@ -10,6 +10,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { dbManager } from "./manager.js";
 import { tools, toolMap } from "./tools/index.js";
+import { log } from "../shared/logger.js";
 
 const SERVER_NAME = "dataspecer-database-query";
 const SERVER_VERSION = "2.0.0";
@@ -76,10 +77,10 @@ async function maybeAutoRegisterDatabase(): Promise<void> {
       }
     );
     await dbManager.connectDatabase(process.env.MCP_DB_ID || "default");
-    console.error(`[mcp-stdio] Auto-registered database "${database}" on ${host}`);
+    log.info(`[mcp-stdio] Auto-registered database "${database}" on ${host}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[mcp-stdio] Auto-register failed (non-fatal): ${message}`);
+    log.warn(`[mcp-stdio] Auto-register failed (non-fatal): ${message}`);
   }
 }
 
@@ -92,7 +93,7 @@ async function main(): Promise<void> {
   const server = buildMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`[mcp-stdio] ${SERVER_NAME} v${SERVER_VERSION} ready on stdio`);
+  log.info(`[mcp-stdio] ${SERVER_NAME} v${SERVER_VERSION} ready on stdio`);
 }
 
 // Only run main() when invoked directly (not when imported by the test).
@@ -103,7 +104,7 @@ const isDirectInvocation =
 
 if (isDirectInvocation) {
   main().catch((error) => {
-    console.error("[mcp-stdio] Fatal error:", error);
+    log.error("[mcp-stdio] Fatal error:", error);
     process.exit(1);
   });
 }
