@@ -95,3 +95,50 @@ export async function fetchAndExtractUrlContent(url: string): Promise<string> {
 
   return content;
 }
+
+export interface UrlFetchResults {
+  [url: string]: { status: "success" | "error"; content?: string; error?: string };
+}
+
+export interface MergedUrlContent {
+  mergedContent: string;
+  results: UrlFetchResults;
+  successCount: number;
+  errorCount: number;
+  message: string;
+}
+
+/**
+ * Fetches the given URLs in parallel, merges the successfully-fetched content into one
+ * plain-text string, and summarizes per-URL outcomes. Shared by the fetch-content and
+ * [id]/get-content routes.
+ */
+export async function fetchAndMergeUrls(validUrls: string[]): Promise<MergedUrlContent> {
+  const results: UrlFetchResults = {};
+  const successContents: string[] = [];
+
+  await Promise.all(
+    validUrls.map(async (url) => {
+      try {
+        const content = await fetchAndExtractUrlContent(url);
+        successContents.push(content);
+        results[url] = {
+          status: "success",
+          content: content.substring(0, 200) + (content.length > 200 ? "..." : ""),
+        };
+      } catch (error) {
+        results[url] = {
+          status: "error",
+          error: error instanceof Error ? error.message : "Failed to fetch URL",
+        };
+      }
+    })
+  );
+
+  const mergedContent = successContents.join("\n\n");
+  const successCount = Object.values(results).filter((r) => r.status === "success").length;
+  const errorCount = Object.values(results).filter((r) => r.status === "error").length;
+  const message = `Fetched and merged content from ${successCount}/${validUrls.length} URL${validUrls.length > 1 ? "s" : ""}${errorCount > 0 ? ` (${errorCount} failed)` : ""}`;
+
+  return { mergedContent, results, successCount, errorCount, message };
+}

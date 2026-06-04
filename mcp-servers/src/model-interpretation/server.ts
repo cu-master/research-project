@@ -4,6 +4,7 @@ import { config } from "./config.js";
 import { tools, toolMap } from "./tools/index.js";
 import { clearAllStoredContent } from "./store.js";
 import { bearerAuth, rateLimit } from "../shared/index.js";
+import { log } from "../shared/logger.js";
 
 export const app = express();
 
@@ -119,7 +120,7 @@ app.post("/mcp/clear-store", (_req: Request, res: Response) => {
 });
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error("Server error:", err);
+  log.error("Server error:", err);
   res.status(500).json({ error: "Internal server error" });
 });
 
@@ -134,20 +135,20 @@ export function startServer(): void {
             ? config.openaiModel
             : config.googleModel;
 
-    console.log(`Server running on http://localhost:${config.port}`);
-    console.log(`AI Provider: ${config.provider}`);
-    console.log(`LLM Model: ${activeModel}\n`);
-    console.log(`Available endpoints:`);
-    console.log(`  GET  /health - Health check`);
-    console.log(`  GET  /tools - List all tools`);
-    console.log(`  GET  /tools/:name - Get tool info`);
-    console.log(`  POST /tools/:name/call - Call a tool`);
-    console.log(`  POST /mcp/call-tool - MCP-compatible tool call`);
-    console.log(`  POST /mcp/list-tools - MCP-compatible tool listing`);
-    console.log(`  POST /mcp/clear-store - Clear all stored content`);
-    console.log(`\nAvailable tools:`);
+    log.info(`Server running on http://localhost:${config.port}`);
+    log.info(`AI Provider: ${config.provider}`);
+    log.info(`LLM Model: ${activeModel}\n`);
+    log.info(`Available endpoints:`);
+    log.info(`  GET  /health - Health check`);
+    log.info(`  GET  /tools - List all tools`);
+    log.info(`  GET  /tools/:name - Get tool info`);
+    log.info(`  POST /tools/:name/call - Call a tool`);
+    log.info(`  POST /mcp/call-tool - MCP-compatible tool call`);
+    log.info(`  POST /mcp/list-tools - MCP-compatible tool listing`);
+    log.info(`  POST /mcp/clear-store - Clear all stored content`);
+    log.info(`\nAvailable tools:`);
     for (const tool of tools) {
-      console.log(`  - ${tool.name}: ${tool.description.substring(0, 50)}...`);
+      log.info(`  - ${tool.name}: ${tool.description.substring(0, 50)}...`);
     }
   });
 }

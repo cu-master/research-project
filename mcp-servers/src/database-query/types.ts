@@ -33,6 +33,8 @@ export interface Constraint {
   column_name: string;
 }
 
+// Return shape of DatabaseAdapter.executeQuery, retained as the NFR-01 read-only test harness
+// (see postgresql.ts); not used by the production SPARQL/Ontop query path.
 export interface QueryResult {
   rows: Record<string, unknown>[];
   rowCount: number;

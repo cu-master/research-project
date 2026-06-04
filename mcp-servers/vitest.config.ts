@@ -1,7 +1,10 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, configDefaults } from "vitest/config";
 
 export default defineConfig({
     test: {
         setupFiles: ["./vitest.setup.ts"],
+        // Integration tests run via vitest.integration.config.ts; keep the default
+        // `npm test` a pure unit run so it doesn't try to start Docker/testcontainers.
+        exclude: [...configDefaults.exclude, "**/*.integration.test.ts"],
     },
 });

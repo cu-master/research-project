@@ -8,6 +8,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { tools, toolMap } from "./tools/index.js";
+import { log } from "../shared/logger.js";
 
 const SERVER_NAME = "dataspecer-model-interpretation";
 const SERVER_VERSION = "2.1.0";
@@ -58,7 +59,7 @@ async function main(): Promise<void> {
   const server = buildMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`[mcp-stdio] ${SERVER_NAME} v${SERVER_VERSION} ready on stdio`);
+  log.info(`[mcp-stdio] ${SERVER_NAME} v${SERVER_VERSION} ready on stdio`);
 }
 
 const isDirectInvocation =
@@ -68,7 +69,7 @@ const isDirectInvocation =
 
 if (isDirectInvocation) {
   main().catch((error) => {
-    console.error("[mcp-stdio] Fatal error:", error);
+    log.error("[mcp-stdio] Fatal error:", error);
     process.exit(1);
   });
 }

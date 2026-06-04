@@ -1,6 +1,7 @@
 import type { McpResponse } from "../../shared/types.js";
 import { callAI } from "../ai/index.js";
 import { createMcpResponse, formatApiError } from "../utils.js";
+import { log } from "../../shared/logger.js";
 import {
   answerQuerySchema,
   summarizeContentSchema,
@@ -15,8 +16,8 @@ export async function handleAnswerQuery(
   try {
     const { query, content } = answerQuerySchema.parse(args);
 
-    console.log(`[AnswerQuery] Processing query: "${query}"`);
-    console.log(`[AnswerQuery] Content length: ${content.length} chars`);
+    log.debug(`[AnswerQuery] Processing query: "${query}"`);
+    log.debug(`[AnswerQuery] Content length: ${content.length} chars`);
 
     const prompt = `You are a knowledgeable assistant. Your task is to answer questions using the provided content as context, with comprehensive explanations.
 
@@ -49,7 +50,7 @@ Return a JSON object with this exact structure:
 - The explanation should be comprehensive but focused on answering the user's query
 - Return ONLY the JSON object, no additional text or markdown formatting`;
 
-    console.log(`[AnswerQuery] Generating explanation`);
+    log.debug(`[AnswerQuery] Generating explanation`);
     const aiResponse = await callAI(prompt, 8000);
 
     let parsedResponse: { explanation: string };
@@ -67,7 +68,7 @@ Return a JSON object with this exact structure:
         throw new Error("No JSON object found in response");
       }
     } catch (parseError) {
-      console.warn(`[AnswerQuery] Failed to parse structured response, using fallback format:`, parseError);
+      log.warn(`[AnswerQuery] Failed to parse structured response, using fallback format:`, parseError);
       return createMcpResponse(
         `Explanation:\n${aiResponse}\n\nNote: The response could not be parsed into structured format. Please review the explanation above.`
       );
@@ -75,7 +76,7 @@ Return a JSON object with this exact structure:
 
     const responseText = `## Explanation\n\n${parsedResponse.explanation}\n`;
 
-    console.log(`[AnswerQuery] Generated explanation`);
+    log.debug(`[AnswerQuery] Generated explanation`);
 
     return createMcpResponse(responseText);
   } catch (error) {
@@ -92,7 +93,7 @@ export async function handleSummarizeContent(
   try {
     const { content } = summarizeContentSchema.parse(args);
 
-    console.log(`[SummarizeContent] Content length: ${content.length} chars`);
+    log.debug(`[SummarizeContent] Content length: ${content.length} chars`);
 
     const prompt = `You are a content analysis assistant. Your task is to produce a concise, structured summary of the provided content.
 
@@ -158,7 +159,7 @@ Return a JSON object with this exact structure:
         throw new Error("No JSON object found in response");
       }
     } catch {
-      console.warn(`[SummarizeContent] Failed to parse structured response, using raw text`);
+      log.warn(`[SummarizeContent] Failed to parse structured response, using raw text`);
       return createMcpResponse(aiResponse);
     }
 
@@ -187,7 +188,7 @@ Return a JSON object with this exact structure:
       responseText += `### Coverage\n\n${parsed.coverage}\n`;
     }
 
-    console.log(`[SummarizeContent] Generated summary: ${parsed.entityCount} entities, ${parsed.relationshipCount} relationships`);
+    log.debug(`[SummarizeContent] Generated summary: ${parsed.entityCount} entities, ${parsed.relationshipCount} relationships`);
     return createMcpResponse(responseText);
   } catch (error) {
     return createMcpResponse(
@@ -203,9 +204,9 @@ export async function handleExplainMapping(
   try {
     const { mapping, content } = explainMappingSchema.parse(args);
 
-    console.log(`[ExplainMapping] Mapping length: ${mapping.length} chars`);
+    log.debug(`[ExplainMapping] Mapping length: ${mapping.length} chars`);
     if (content) {
-      console.log(`[ExplainMapping] Content length: ${content.length} chars`);
+      log.debug(`[ExplainMapping] Content length: ${content.length} chars`);
     }
 
     const contentSection = content
@@ -288,7 +289,7 @@ Return a JSON object with this exact structure:
         throw new Error("No JSON object found in response");
       }
     } catch {
-      console.warn(`[ExplainMapping] Failed to parse structured response, using raw text`);
+      log.warn(`[ExplainMapping] Failed to parse structured response, using raw text`);
       return createMcpResponse(aiResponse);
     }
 
@@ -328,7 +329,7 @@ Return a JSON object with this exact structure:
 
     responseText += `### Plain Language Summary\n\n${parsed.plainSummary}\n`;
 
-    console.log(`[ExplainMapping] Explained ${parsed.triplesMaps.length} TriplesMap(s)`);
+    log.debug(`[ExplainMapping] Explained ${parsed.triplesMaps.length} TriplesMap(s)`);
     return createMcpResponse(responseText);
   } catch (error) {
     return createMcpResponse(
@@ -344,7 +345,7 @@ export async function handleCompareSchemaMapping(
   try {
     const { ontology, dbSchema, mapping } = compareSchemaMappingSchema.parse(args);
 
-    console.log(`[CompareSchemaMapping] Processing comparison`);
+    log.debug(`[CompareSchemaMapping] Processing comparison`);
 
     const prompt = `You are a data integration expert. Your task is to analyze the alignment between a domain ontology (conceptual model), a database schema, and an R2RML mapping that connects them.
     
@@ -402,7 +403,7 @@ Return ONLY the JSON object, no markdown formatting.`;
         throw new Error("No JSON object found in response");
       }
     } catch {
-      console.warn(`[CompareSchemaMapping] Failed to parse structured response, using raw text`);
+      log.warn(`[CompareSchemaMapping] Failed to parse structured response, using raw text`);
       return createMcpResponse(aiResponse);
     }
 
@@ -447,7 +448,7 @@ export async function handleSuggestQueries(
   try {
     const { ontology, dbSchema } = suggestQueriesSchema.parse(args);
 
-    console.log(`[SuggestQueries] Generating suggestions`);
+    log.debug(`[SuggestQueries] Generating suggestions`);
 
     const dbContext = dbSchema 
       ? `\n**Database Schema (for grounding available data):**\n---\n${dbSchema}\n---`
@@ -497,7 +498,7 @@ Return ONLY the JSON object, no markdown formatting.`;
         throw new Error("No JSON object found in response");
       }
     } catch {
-      console.warn(`[SuggestQueries] Failed to parse structured response, using raw text`);
+      log.warn(`[SuggestQueries] Failed to parse structured response, using raw text`);
       return createMcpResponse(aiResponse);
     }
 

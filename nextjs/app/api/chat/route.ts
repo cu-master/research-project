@@ -47,6 +47,9 @@ const TOOL_LABELS: Record<string, string> = {
   database_get_table_schema: "Inspecting table schema",
 };
 
+// Multi-word patterns whose first word already appears as a single-word pattern
+// (drop table, alter table, delete all, update record) are omitted as redundant —
+// the broader \bdrop\b / \balter\b / \bdelete\b / \bupdate\b already match them.
 const MUTATION_INTENT_PATTERNS: RegExp[] = [
   /\bdelete\b/i,
   /\bdrop\b/i,
@@ -55,12 +58,8 @@ const MUTATION_INTENT_PATTERNS: RegExp[] = [
   /\btruncate\b/i,
   /\balter\b/i,
   /\bcreate\s+table\b/i,
-  /\bdrop\s+table\b/i,
-  /\balter\s+table\b/i,
-  /\bdelete\s+all\b/i,
   /\bremove\s+all\b/i,
   /\badd\s+a\s+record\b/i,
-  /\bupdate\s+record\b/i,
 ];
 
 function isMutationIntent(message: string): boolean {
@@ -112,6 +111,158 @@ function buildKnownTablesLines(schemaValue: unknown): string[] {
     .filter((line): line is string => Boolean(line));
 }
 
+// Maps a thrown error to a user-facing message. Shared by the in-stream error event and the
+// outer catch; `isRecursionLimit` lets the outer catch return a 400 instead of a 500.
+function classifyChatError(error: unknown): { message: string; isRecursionLimit: boolean } {
+  if (error instanceof Error) {
+    if (
+      (error as Error & { lc_error_code?: string }).lc_error_code === "GRAPH_RECURSION_LIMIT" ||
+      error.message.includes("GRAPH_RECURSION_LIMIT") ||
+      error.message.includes("Recursion limit")
+    ) {
+      return {
+        message:
+          "I'm sorry, but I wasn't able to complete your request. " +
+          "The query required too many processing steps. This can happen when the generated query fails validation repeatedly. " +
+          "Please try rephrasing your question or simplifying your request.",
+        isRecursionLimit: true,
+      };
+    }
+    if (error.message.includes("invalid_request_error")) {
+      return {
+        message: "There was an issue with the AI service. Please try starting a new conversation.",
+        isRecursionLimit: false,
+      };
+    }
+    if (error.message.includes("ECONNREFUSED")) {
+      return {
+        message: "Cannot connect to required services. Please ensure all servers are running.",
+        isRecursionLimit: false,
+      };
+    }
+    if (error.message.includes("reduce") || error.message.includes("Cannot read properties")) {
+      return {
+        message: "There was a compatibility issue with the AI model. Please try your request again.",
+        isRecursionLimit: false,
+      };
+    }
+  }
+  return {
+    message: "An error occurred while processing your request.",
+    isRecursionLimit: false,
+  };
+}
+
+// NFR-02/NFR-06 fast-path: stream a single "graceful termination" message in the same ndjson
+// shape as a normal assistant reply, persisting both messages so the UI history stays correct.
+function streamGracefulMessage(
+  responseMessage: string,
+  sessionId: string | undefined,
+  userMessage: string
+): Response {
+  const startTime = Date.now();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const encoder = new TextEncoder();
+      void (async () => {
+        const latency = (Date.now() - startTime) / 1000;
+        if (sessionId) {
+          try {
+            await saveMessage(sessionId, "user", userMessage);
+            await saveMessage(sessionId, "assistant", responseMessage, undefined, [], latency);
+          } catch (dbErr) {
+            console.warn("[DB] Graceful fast-path: failed to save messages:", dbErr);
+          }
+        }
+        const doneEvent: ChatStreamEvent = {
+          type: "done",
+          response: responseMessage,
+          toolsUsed: [],
+          latency,
+        };
+        controller.enqueue(encoder.encode(`${JSON.stringify(doneEvent)}\n`));
+        controller.close();
+      })();
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+type ProjectContextResult =
+  | { sessionNotFound: true }
+  | { sessionNotFound: false; projectContext: string; projectIdToUse: string | null };
+
+// Verifies the session (if any) and assembles the [PROJECT CONTEXT] block: prefers the session's
+// project, falling back to the user's default. Returns sessionNotFound so the route can 404.
+async function buildProjectContext(
+  userId: string,
+  sessionId: string | undefined
+): Promise<ProjectContextResult> {
+  let sessionProjectId: string | null = null;
+  if (sessionId) {
+    try {
+      const session = await getSession(sessionId, userId);
+      if (!session) {
+        return { sessionNotFound: true };
+      }
+      sessionProjectId = session.project_id || null;
+    } catch (error) {
+      console.warn("[Context] Could not verify session:", error);
+    }
+  }
+
+  let projectContext = "";
+  let projectIdToUse: string | null = sessionProjectId;
+  try {
+    if (!projectIdToUse) {
+      projectIdToUse = await getDefaultProjectId(userId);
+    }
+    if (projectIdToUse) {
+      const project = await getProject(projectIdToUse, userId);
+      if (project) {
+        const contextParts: string[] = [];
+        contextParts.push(`[PROJECT CONTEXT] Project: "${project.name}"`);
+
+        // Only include capability flags — actual content is accessed via tools
+        const capabilities: string[] = [];
+        let knownTablesLines: string[] = [];
+        if (project.content && project.content.trim()) {
+          capabilities.push("URL Content (use 'answer_query' or 'summarize_content' tools to access)");
+        }
+        if (project.db_schema && Object.keys(project.db_schema).length > 0) {
+          capabilities.push("Database Schema (use database tools to query)");
+          knownTablesLines = buildKnownTablesLines(project.db_schema);
+        }
+        if (project.r2rml_mapping && project.r2rml_mapping.trim()) {
+          capabilities.push("R2RML Mapping (use 'obda_query_with_ontop' for queries or 'explain_mapping' to understand it)");
+        }
+
+        if (capabilities.length > 0) {
+          contextParts.push(`\nAvailable project data:\n- ${capabilities.join("\n- ")}`);
+        } else {
+          contextParts.push(`\nThis project has no data configured yet.`);
+        }
+        if (knownTablesLines.length > 0) {
+          contextParts.push(`\nKnown tables:\n${knownTablesLines.join("\n")}`);
+        }
+
+        projectContext = contextParts.join("\n");
+        console.log(`[Context] Project "${project.name}" loaded for session ${sessionId || "(new)"}`);
+      }
+    }
+  } catch (error) {
+    console.warn("[Context] Could not load project:", error);
+  }
+
+  return { sessionNotFound: false, projectContext, projectIdToUse };
+}
+
 export async function POST(request: Request) {
   try {
     const userId = await getAuthUserId();
@@ -138,173 +289,34 @@ export async function POST(request: Request) {
 
     const { message, history, sessionId } = parsedBody;
     const safeMessage = typeof message === "string" ? message : "";
-    const sessionIdForBudget =
+    const validSessionId =
       typeof sessionId === "string" && sessionId.trim() !== "" ? sessionId : undefined;
 
-    // NFR-06: enforce per-request + per-session token budget BEFORE we spend
-    // any model/tool credits. Returns a streamed "graceful termination"
-    // message identical in shape to a normal assistant reply so the UI just
-    // displays it and the budget event is persisted in chat history.
-    const budgetVerdict = await checkRequestBudget(sessionIdForBudget, safeMessage);
+    // NFR-06: enforce per-request + per-session token budget BEFORE we spend any
+    // model/tool credits. Returns a streamed graceful-termination message.
+    const budgetVerdict = await checkRequestBudget(validSessionId, safeMessage);
     if (!budgetVerdict.ok) {
       console.log(
-        `[NFR-06] Budget rejected (${budgetVerdict.reason}) for session=${sessionIdForBudget ?? "(none)"}`
+        `[NFR-06] Budget rejected (${budgetVerdict.reason}) for session=${validSessionId ?? "(none)"}`
       );
-      const startTime = Date.now();
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          const encoder = new TextEncoder();
-          void (async () => {
-            const latency = (Date.now() - startTime) / 1000;
-            if (sessionIdForBudget) {
-              try {
-                await saveMessage(sessionIdForBudget, "user", safeMessage);
-                await saveMessage(
-                  sessionIdForBudget,
-                  "assistant",
-                  budgetVerdict.message,
-                  undefined,
-                  [],
-                  latency
-                );
-              } catch (dbErr) {
-                console.warn("[DB] Budget fast-path: failed to save messages:", dbErr);
-              }
-            }
-            const doneEvent: ChatStreamEvent = {
-              type: "done",
-              response: budgetVerdict.message,
-              toolsUsed: [],
-              latency,
-            };
-            controller.enqueue(encoder.encode(`${JSON.stringify(doneEvent)}\n`));
-            controller.close();
-          })();
-        },
-      });
-      return new Response(stream, {
-        headers: {
-          "Content-Type": "application/x-ndjson; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-        },
-      });
+      return streamGracefulMessage(budgetVerdict.message, validSessionId, safeMessage);
     }
 
     // NFR-02 fast-path: block write intent before invoking model/tools.
     if (isMutationIntent(safeMessage)) {
       console.log("Processing message:", safeMessage, "| LLM: (skipped — read-only guard)");
-      const startTime = Date.now();
       const refusalResponse =
         "I'm sorry, but I cannot perform that operation. Deleting, inserting, or modifying data is not permitted — this system only allows read-only SELECT queries for data safety.\n\n" +
         "I can, however, help you find information with a read-only query. If you'd like, ask for a report, list, or summary from the database.";
-      const sessionIdValue =
-        typeof sessionId === "string" && sessionId.trim() !== ""
-          ? sessionId
-          : undefined;
-
-      const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          const encoder = new TextEncoder();
-
-          void (async () => {
-            const latency = (Date.now() - startTime) / 1000;
-
-            // Save both messages to DB so loadMessages() after done doesn't wipe the UI.
-            if (sessionIdValue) {
-              try {
-                await saveMessage(sessionIdValue, "user", safeMessage);
-                await saveMessage(
-                  sessionIdValue,
-                  "assistant",
-                  refusalResponse,
-                  undefined,
-                  [],
-                  latency
-                );
-              } catch (dbErr) {
-                console.warn("[DB] Fast-path: failed to save messages:", dbErr);
-              }
-            }
-
-            const doneEvent: ChatStreamEvent = {
-              type: "done",
-              response: refusalResponse,
-              toolsUsed: [],
-              latency,
-            };
-            controller.enqueue(encoder.encode(`${JSON.stringify(doneEvent)}\n`));
-            controller.close();
-          })();
-        },
-      });
-
-      return new Response(stream, {
-        headers: {
-          "Content-Type": "application/x-ndjson; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-        },
-      });
+      return streamGracefulMessage(refusalResponse, validSessionId, safeMessage);
     }
 
-    // Verify session exists if sessionId is provided, and load its project_id
-    let sessionProjectId: string | null = null;
-    if (sessionId && typeof sessionId === "string" && sessionId.trim() !== "") {
-      try {
-        const session = await getSession(sessionId, userId);
-        if (!session) {
-          return NextResponse.json({ error: "Session not found" }, { status: 404 });
-        }
-        sessionProjectId = session.project_id || null;
-      } catch (error) {
-        console.warn("[Context] Could not verify session:", error);
-      }
+    // Verify the session (if provided) and assemble project context.
+    const ctx = await buildProjectContext(userId, validSessionId);
+    if (ctx.sessionNotFound) {
+      return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
-
-    // Load project context: prefer session's project, fall back to user's default
-    let projectContext = "";
-    let projectIdToUse: string | null = sessionProjectId;
-    try {
-      if (!projectIdToUse) {
-        projectIdToUse = await getDefaultProjectId(userId);
-      }
-      if (projectIdToUse) {
-        const project = await getProject(projectIdToUse, userId);
-        if (project) {
-          const contextParts: string[] = [];
-          contextParts.push(`[PROJECT CONTEXT] Project: "${project.name}"`);
-
-          // Only include capability flags — actual content is accessed via tools
-          const capabilities: string[] = [];
-          let knownTablesLines: string[] = [];
-          if (project.content && project.content.trim()) {
-            capabilities.push("URL Content (use 'answer_query' or 'summarize_content' tools to access)");
-          }
-          if (project.db_schema && Object.keys(project.db_schema).length > 0) {
-            capabilities.push("Database Schema (use database tools to query)");
-            knownTablesLines = buildKnownTablesLines(project.db_schema);
-          }
-          if (project.r2rml_mapping && project.r2rml_mapping.trim()) {
-            capabilities.push("R2RML Mapping (use 'obda_query_with_ontop' for queries or 'explain_mapping' to understand it)");
-          }
-
-          if (capabilities.length > 0) {
-            contextParts.push(`\nAvailable project data:\n- ${capabilities.join("\n- ")}`);
-          } else {
-            contextParts.push(`\nThis project has no data configured yet.`);
-          }
-          if (knownTablesLines.length > 0) {
-            contextParts.push(`\nKnown tables:\n${knownTablesLines.join("\n")}`);
-          }
-
-          projectContext = contextParts.join("\n");
-          console.log(`[Context] Project "${project.name}" loaded for session ${sessionId || "(new)"}`);
-        }
-      }
-    } catch (error) {
-      console.warn("[Context] Could not load project:", error);
-    }
+    const { projectContext, projectIdToUse } = ctx;
 
     const safeHistory = Array.isArray(history) ? history : [];
     const chatHistory = safeHistory
@@ -342,9 +354,6 @@ export async function POST(request: Request) {
       ? [...chatHistory, new HumanMessage(messageContent + "\n\n" + projectContext)]
       : [...chatHistory, new HumanMessage(messageContent)];
 
-    const sessionIdValue =
-      typeof sessionId === "string" && sessionId.trim() !== "" ? sessionId : undefined;
-
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         const encoder = new TextEncoder();
@@ -363,7 +372,7 @@ export async function POST(request: Request) {
           try {
             await runWithLangChainRequestContext(
               {
-                sessionId: sessionIdValue,
+                sessionId: validSessionId,
                 projectId: projectIdToUse ?? undefined,
                 userId,
               },
@@ -456,7 +465,6 @@ export async function POST(request: Request) {
               const lastToolResult = toolCalls[toolCalls.length - 1];
               if (lastToolResult.observation) {
                 responseText = lastToolResult.observation;
-                console.log("Using tool result as response");
               }
             }
 
@@ -466,39 +474,20 @@ export async function POST(request: Request) {
               responseText.trim() ||
               "I wasn't able to process your request. Please try rephrasing your question.";
 
-            console.log("Response text:", finalResponse || "(empty)");
-            console.log("Tool calls count:", toolCalls.length);
-
             // Save messages to database if sessionId is provided
-            if (sessionIdValue) {
+            if (validSessionId) {
               try {
-                console.log(`[DB] Saving messages to database for session: ${sessionIdValue}`);
-                console.log(
-                  `[DB] User message length: ${safeMessage.length}, Assistant response length: ${finalResponse.length}`
-                );
-
-                const session = await getSession(sessionIdValue, userId);
-                if (!session) {
-                  console.error(`[DB] Session ${sessionIdValue} does not exist or not owned by user!`);
-                } else {
-                  console.log(`[DB] Session ${sessionIdValue} verified, saving messages...`);
-                }
-
-                const userMsg = await saveMessage(sessionIdValue, "user", safeMessage);
-                console.log(`[DB] ✓ User message saved with ID: ${userMsg.id}`);
-
-                const assistantMsg = await saveMessage(
-                  sessionIdValue,
+                await saveMessage(validSessionId, "user", safeMessage);
+                await saveMessage(
+                  validSessionId,
                   "assistant",
                   finalResponse,
                   undefined,
                   toolCalls.length > 0 ? toolCalls : undefined,
                   latency || undefined
                 );
-                console.log(`[DB] ✓ Assistant message saved with ID: ${assistantMsg.id}`);
-                console.log(`[DB] ✓ Both messages saved successfully for session: ${sessionIdValue}`);
               } catch (dbError) {
-                console.error("[DB] ✗ Failed to save messages to database:", dbError);
+                console.error("[DB] Failed to save messages to database:", dbError);
                 console.error("[DB] Error details:", {
                   name: dbError instanceof Error ? dbError.name : "Unknown",
                   message: dbError instanceof Error ? dbError.message : String(dbError),
@@ -516,9 +505,6 @@ export async function POST(request: Request) {
                   }
                 }
               }
-            } else {
-              console.warn("[DB] No valid sessionId provided, messages will not be saved to database");
-              console.log("[DB] SessionId value:", sessionId, "Type:", typeof sessionId);
             }
 
             emit({
@@ -530,32 +516,7 @@ export async function POST(request: Request) {
             controller.close();
           } catch (error) {
             console.error("Error processing request stream:", error);
-            let errorMessage = "An error occurred while processing your request.";
-            if (error instanceof Error) {
-              if (
-                (error as Error & { lc_error_code?: string }).lc_error_code ===
-                  "GRAPH_RECURSION_LIMIT" ||
-                error.message.includes("GRAPH_RECURSION_LIMIT") ||
-                error.message.includes("Recursion limit")
-              ) {
-                errorMessage =
-                  "I'm sorry, but I wasn't able to complete your request. " +
-                  "The query required too many processing steps. This can happen when the generated query fails validation repeatedly. " +
-                  "Please try rephrasing your question or simplifying your request.";
-              } else if (error.message.includes("invalid_request_error")) {
-                errorMessage =
-                  "There was an issue with the AI service. Please try starting a new conversation.";
-              } else if (error.message.includes("ECONNREFUSED")) {
-                errorMessage =
-                  "Cannot connect to required services. Please ensure all servers are running.";
-              } else if (
-                error.message.includes("reduce") ||
-                error.message.includes("Cannot read properties")
-              ) {
-                errorMessage =
-                  "There was a compatibility issue with the AI model. Please try your request again.";
-              }
-            }
+            const { message: errorMessage } = classifyChatError(error);
             emit({ type: "error", message: errorMessage });
             controller.close();
           }
@@ -582,43 +543,17 @@ export async function POST(request: Request) {
       stack: error instanceof Error ? error.stack : undefined,
     });
 
-    let errorMessage = "An error occurred while processing your request.";
-    if (error instanceof Error) {
-      // NFR-02: Agent tried to retry a rejected mutating SQL query and hit the loop limit.
-      // Return a clean 400 with an explanation instead of a 500.
-      if (
-        (error as Error & { lc_error_code?: string }).lc_error_code === "GRAPH_RECURSION_LIMIT" ||
-        error.message.includes("GRAPH_RECURSION_LIMIT") ||
-        error.message.includes("Recursion limit")
-      ) {
-        return NextResponse.json(
-          {
-            response:
-              "I'm sorry, but I wasn't able to complete your request. " +
-              "The query required too many processing steps. This can happen when the generated query fails validation repeatedly. " +
-              "Please try rephrasing your question or simplifying your request.",
-            error: "Processing limit reached",
-          },
-          { status: 400 }
-        );
-      }
-      if (error.message.includes("invalid_request_error")) {
-        errorMessage =
-          "There was an issue with the AI service. Please try starting a new conversation.";
-      } else if (error.message.includes("ECONNREFUSED")) {
-        errorMessage =
-          "Cannot connect to required services. Please ensure all servers are running.";
-      } else if (error.message.includes("reduce") || error.message.includes("Cannot read properties")) {
-        errorMessage =
-          "There was a compatibility issue with the AI model. Please try your request again.";
-      }
+    const { message, isRecursionLimit } = classifyChatError(error);
+    // NFR-02: a rejected mutating query that exhausts the retry loop surfaces as a
+    // recursion-limit error — return a clean 400 rather than a 500.
+    if (isRecursionLimit) {
+      return NextResponse.json(
+        { response: message, error: "Processing limit reached" },
+        { status: 400 }
+      );
     }
-
     return NextResponse.json(
-      {
-        response: errorMessage,
-        error: "Internal server error",
-      },
+      { response: message, error: "Internal server error" },
       { status: 500 }
     );
   }

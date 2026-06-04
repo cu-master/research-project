@@ -86,6 +86,9 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
     return this.pool;
   }
 
+  // Not on the production query path — live queries run through SPARQL/Ontop (see obda-handler.ts).
+  // Retained as the harness for the NFR-01 read-only integration tests (postgresql.integration.test.ts),
+  // which prove the database rejects writes at the DB-user level.
   async executeQuery(sql: string): Promise<QueryResult> {
     try {
       const pool = this.getPool();
@@ -169,36 +172,5 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
     return result.rows;
   }
 
-  async buildSchemaContext(): Promise<string> {
-    let context = "DATABASE SCHEMA (PostgreSQL):\n\n";
-
-    try {
-      const tables = await this.listTables();
-
-      for (const table of tables) {
-        context += `Table: ${table.table_name} (${table.table_type})\n`;
-        const columns = await this.getTableColumns(table.table_name);
-
-        for (const col of columns) {
-          const nullable = col.is_nullable === "YES" ? "NULL" : "NOT NULL";
-          const defaultVal = col.column_default ? ` DEFAULT ${col.column_default}` : "";
-          context += `  - ${col.column_name}: ${col.data_type} ${nullable}${defaultVal}\n`;
-        }
-
-        const fks = await this.getTableForeignKeys(table.table_name);
-        if (fks.length > 0) {
-          context += "  Foreign Keys:\n";
-          for (const fk of fks) {
-            context += `    - ${fk.column_name} -> ${fk.foreign_table_name}.${fk.foreign_column_name}\n`;
-          }
-        }
-        context += "\n";
-      }
-
-      return context;
-    } catch (err) {
-      return `Unable to fetch complete schema: ${err}`;
-    }
-  }
 }
 

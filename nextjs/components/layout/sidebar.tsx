@@ -13,7 +13,6 @@ export default function Sidebar() {
   const {
     currentSessionId,
     setCurrentSessionId,
-    refreshSessions,
     hasUnsavedWork,
   } = useSession();
   const { data: authSession } = useAuthSession();
@@ -90,7 +89,6 @@ export default function Sidebar() {
         await fetch("/api/sessions/clear-store", { method: "POST" });
 
         if (shouldRefreshSessions) {
-          await refreshSessions();
           await loadAllSessions();
         }
       } catch (error) {
@@ -207,7 +205,6 @@ export default function Sidebar() {
         }
 
         await loadAllSessions();
-        await refreshSessions();
       } else {
         const error = await response.json();
         console.error("Failed to delete session:", error);

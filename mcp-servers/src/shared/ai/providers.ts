@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { LLMConfig } from "../types.js";
+import { log } from "../logger.js";
 
 let anthropicClient: Anthropic | null = null;
 let googleClient: GoogleGenerativeAI | null = null;
@@ -70,14 +71,14 @@ async function callGoogle(
   const finishReason = candidate?.finishReason;
 
   if (finishReason === "SAFETY") {
-    console.error("Google AI blocked due to safety filters");
+    log.error("Google AI blocked due to safety filters");
     return "The AI was unable to generate a response due to content safety filters.";
   }
 
   if (!text || text.trim().length === 0) {
-    console.error("Google AI returned empty response");
-    console.error("Prompt length:", prompt.length);
-    console.error("Finish reason:", finishReason);
+    log.error("Google AI returned empty response");
+    log.error("Prompt length:", prompt.length);
+    log.error("Finish reason:", finishReason);
 
     if (finishReason === "MAX_TOKENS") {
       return "The response was cut off due to token limits. Try requesting fewer examples or specific entities.";
@@ -87,7 +88,7 @@ async function callGoogle(
   }
 
   if (finishReason === "MAX_TOKENS") {
-    console.log(
+    log.warn(
       `Response was truncated at ${text.length} chars due to MAX_TOKENS`
     );
   }
