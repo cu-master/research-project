@@ -22,6 +22,9 @@ const obdaQuerySchema = z.object({
     ),
 });
 
+// Multi-word patterns whose first word already appears as a single-word pattern
+// (drop table, alter table, delete all, update record) are omitted as redundant —
+// the broader \bdrop\b / \balter\b / \bdelete\b / \bupdate\b already match them.
 const MUTATION_INTENT_PATTERNS: RegExp[] = [
   /\bdelete\b/i,
   /\bdrop\b/i,
@@ -30,12 +33,8 @@ const MUTATION_INTENT_PATTERNS: RegExp[] = [
   /\btruncate\b/i,
   /\balter\b/i,
   /\bcreate\s+table\b/i,
-  /\bdrop\s+table\b/i,
-  /\balter\s+table\b/i,
-  /\bdelete\s+all\b/i,
   /\bremove\s+all\b/i,
   /\badd\s+a\s+record\b/i,
-  /\bupdate\s+record\b/i,
 ];
 
 function detectMutationIntent(query: string): boolean {

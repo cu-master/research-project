@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthUserId } from "@/lib/auth-helpers";
 import { getProject, updateProjectContent } from "@/lib/db/projects";
-import { fetchAndExtractUrlContent } from "@/lib/url-content";
+import { fetchAndMergeUrls } from "@/lib/url-content";
 
 /**
  * POST /api/projects/[id]/get-content
@@ -45,44 +45,10 @@ export async function POST(
       );
     }
 
-    // Fetch content from each URL in parallel
-    const results: Record<
-      string,
-      { status: "success" | "error"; content?: string; error?: string }
-    > = {};
-    const successContents: string[] = [];
-
-    await Promise.all(
-      validUrls.map(async (url: string) => {
-        try {
-          const content = await fetchAndExtractUrlContent(url);
-
-          successContents.push(content);
-          results[url] = {
-            status: "success",
-            content:
-              content.substring(0, 200) +
-              (content.length > 200 ? "..." : ""),
-          };
-        } catch (error) {
-          results[url] = {
-            status: "error",
-            error:
-              error instanceof Error ? error.message : "Failed to fetch URL",
-          };
-        }
-      })
-    );
-
-    // Merge all successfully fetched content into one plain-text string
-    const mergedContent = successContents.join("\n\n");
+    const { mergedContent, results, message } = await fetchAndMergeUrls(validUrls);
 
     // Store the merged content as plain text in the project
-    const updated = await updateProjectContent(
-      id,
-      userId,
-      mergedContent
-    );
+    const updated = await updateProjectContent(id, userId, mergedContent);
 
     if (!updated) {
       return NextResponse.json(
@@ -91,16 +57,9 @@ export async function POST(
       );
     }
 
-    const successCount = Object.values(results).filter(
-      (r) => r.status === "success"
-    ).length;
-    const errorCount = Object.values(results).filter(
-      (r) => r.status === "error"
-    ).length;
-
     return NextResponse.json({
       success: true,
-      message: `Fetched and merged content from ${successCount}/${validUrls.length} URL${validUrls.length > 1 ? "s" : ""}${errorCount > 0 ? ` (${errorCount} failed)` : ""}`,
+      message,
       mergedContent,
       results,
     });

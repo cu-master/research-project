@@ -39,7 +39,11 @@ export async function POST(request: Request) {
 
     let result: { success: boolean; r2rml_mapping?: string; error?: string; raw?: string };
     try {
-      result = JSON.parse(resultStr);
+      const parsed = JSON.parse(resultStr);
+      if (typeof parsed !== "object" || parsed === null || typeof parsed.success !== "boolean") {
+        throw new Error("Unexpected result shape");
+      }
+      result = parsed;
     } catch {
       return NextResponse.json(
         { error: "Failed to parse R2RML generation result", raw: resultStr },

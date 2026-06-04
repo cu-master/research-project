@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthUserId } from "@/lib/auth-helpers";
 import pg from "pg";
+import { validateTargetDbCreds, createTargetPool } from "@/lib/db/target-connection";
 
 /**
  * POST /api/projects/get-schema
@@ -17,35 +18,13 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { db_type, db_host, db_port, db_database, db_user, db_password, db_ssl } = body;
+    const validation = validateTargetDbCreds(body, "Schema retrieval");
+    if ("error" in validation) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+    const { db_database } = validation.creds;
 
-    if (!db_type) {
-      return NextResponse.json({ error: "Database type is required" }, { status: 400 });
-    }
-    if (!db_host) {
-      return NextResponse.json({ error: "Host is required" }, { status: 400 });
-    }
-    if (!db_database) {
-      return NextResponse.json({ error: "Database name is required" }, { status: 400 });
-    }
-
-    if (db_type !== "postgresql") {
-      return NextResponse.json(
-        { error: `Schema retrieval is only supported for PostgreSQL currently. Got: ${db_type}` },
-        { status: 400 }
-      );
-    }
-
-    const pool = new pg.Pool({
-      host: db_host,
-      port: db_port ? parseInt(String(db_port), 10) : 5432,
-      database: db_database,
-      user: db_user || undefined,
-      password: db_password || undefined,
-      ssl: db_ssl ? { rejectUnauthorized: false } : false,
-      max: 1,
-      connectionTimeoutMillis: 10000,
-    });
+    const pool = createTargetPool(validation.creds);
 
     let client: pg.PoolClient | null = null;
     try {
