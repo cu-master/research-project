@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
+import { log } from "./logger.js";
 
 // ---------------------------------------------------------------------------
 // Bearer-token auth
@@ -25,7 +26,7 @@ function timingSafeEqualStr(a: string, b: string): boolean {
 export function bearerAuth(): RequestHandler {
   const token = process.env.MCP_API_TOKEN?.trim();
   if (!token) {
-    console.warn(
+    log.warn(
       "[auth] MCP_API_TOKEN is not set — MCP endpoints are UNAUTHENTICATED. " +
       "Set MCP_API_TOKEN in production."
     );

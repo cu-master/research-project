@@ -1,18 +1,19 @@
 import { startServer } from "./server.js";
+import { log } from "../shared/logger.js";
 
 async function main() {
-  console.log("Model Interpretation MCP Server v1.0.0\n");
+  log.info("Model Interpretation MCP Server v1.0.0\n");
 
   try {
     startServer();
   } catch (error) {
-    console.error("Failed to start Model Interpretation MCP Server:", error);
+    log.error("Failed to start Model Interpretation MCP Server:", error);
     process.exit(1);
   }
 }
 
 main().catch((error) => {
-  console.error("Fatal error in main():", error);
+  log.error("Fatal error in main():", error);
   process.exit(1);
 });
 
