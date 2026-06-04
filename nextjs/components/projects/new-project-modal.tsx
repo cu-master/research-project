@@ -1,6 +1,19 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { Spinner } from "./spinner";
+import {
+  downloadBlob,
+  type AlignmentResult,
+  type ConnectionStatus,
+  type SchemaData,
+  type UploadedFile,
+  type ValidationResult,
+} from "./project-form";
+import { ProjectDetailsSection } from "./project-details-section";
+import { OntologySection } from "./ontology-section";
+import { DatabaseSection } from "./database-section";
+import { MappingSection } from "./mapping-section";
 
 export interface ProjectData {
   id: string;
@@ -17,7 +30,7 @@ export interface ProjectData {
   db_ssl: boolean;
   db_schema: Record<string, unknown> | null;
   r2rml_mapping: string | null;
-  alignment_result?: any;
+  alignment_result?: AlignmentResult;
 }
 
 interface ProjectModalProps {
@@ -26,16 +39,6 @@ interface ProjectModalProps {
   onSaved: () => void;
   project?: ProjectData | null;
 }
-
-const DB_TYPES = [
-  { value: "postgresql", label: "PostgreSQL" },
-  { value: "mysql", label: "MySQL" },
-  { value: "mariadb", label: "MariaDB" },
-  { value: "sqlite", label: "SQLite" },
-  { value: "mssql", label: "SQL Server" },
-  { value: "oracle", label: "Oracle" },
-  { value: "mongodb", label: "MongoDB" },
-];
 
 export default function ProjectModal({
   isOpen,
@@ -67,7 +70,7 @@ export default function ProjectModal({
   const [fetchedContent, setFetchedContent] = useState<string | null>(null);
 
   // Uploaded files state
-  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; size: number }[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [uploadStatus, setUploadStatus] = useState("");
 
   // Form state
@@ -75,40 +78,13 @@ export default function ProjectModal({
   const [isFetchingContent, setIsFetchingContent] = useState(false);
   const [contentStatus, setContentStatus] = useState("");
   const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
   const [isFetchingSchema, setIsFetchingSchema] = useState(false);
-  const [schemaData, setSchemaData] = useState<{
-    database: string;
-    tableCount: number;
-    tables: {
-      name: string;
-      columns: {
-        name: string;
-        type: string;
-        nullable: boolean;
-        default: string | null;
-        isPrimaryKey: boolean;
-        isUnique: boolean;
-        foreignKey: { table: string; column: string; constraint: string } | null;
-      }[];
-    }[];
-  } | null>(null);
+  const [schemaData, setSchemaData] = useState<SchemaData | null>(null);
   const [schemaError, setSchemaError] = useState("");
 
   // Section 4: Alignment Check & R2RML Mapping
-  const [alignmentResult, setAlignmentResult] = useState<{
-    score: number;
-    ontologyDomain: string;
-    databaseDomain: string;
-    matchedConcepts: string[];
-    unmatchedOntology: string[];
-    unmatchedDatabase: string[];
-    recommendation: "proceed" | "warning" | "mismatch";
-    summary: string;
-  } | null>(null);
+  const [alignmentResult, setAlignmentResult] = useState<AlignmentResult | null>(null);
   const [isCheckingAlignment, setIsCheckingAlignment] = useState(false);
   const [alignmentError, setAlignmentError] = useState("");
 
@@ -116,16 +92,7 @@ export default function ProjectModal({
   const [isGeneratingMapping, setIsGeneratingMapping] = useState(false);
   const [mappingError, setMappingError] = useState("");
   const [isValidating, setIsValidating] = useState(false);
-  const [validationResult, setValidationResult] = useState<{
-    valid: boolean;
-    issues: { level: "error" | "warning"; message: string }[];
-    stats: {
-      tripleCount: number;
-      triplesMaps: string[];
-      referencedTables: string[];
-      referencedColumns: string[];
-    };
-  } | null>(null);
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
 
   const [error, setError] = useState("");
 
@@ -143,11 +110,7 @@ export default function ProjectModal({
         setDbUser(project.db_user || "");
         setDbPassword(project.db_password || "");
         setDbSsl(project.db_ssl || false);
-        setSchemaData(
-          project.db_schema
-            ? (project.db_schema as typeof schemaData)
-            : null
-        );
+        setSchemaData(project.db_schema ? (project.db_schema as unknown as SchemaData) : null);
         setR2rmlMapping(project.r2rml_mapping || null);
         setAlignmentResult(project.alignment_result || null);
       } else {
@@ -164,8 +127,6 @@ export default function ProjectModal({
         setSchemaData(null);
         setR2rmlMapping(null);
         setAlignmentResult(null);
-        setUploadedFiles([]);
-        setUploadStatus("");
       }
       setError("");
       setContentStatus("");
@@ -175,12 +136,10 @@ export default function ProjectModal({
       setIsCheckingAlignment(false);
       setMappingError("");
       setValidationResult(null);
-      // Keep empty string (cleared state) so the UI matches what was saved.
+      // Restore saved content (null when the project has none) so the textarea matches the DB.
       setFetchedContent(project?.content ?? null);
       setUploadedFiles([]);
       setUploadStatus("");
-      // Note: schemaData is set inside the if/else branches above;
-      // do NOT reset it here or it will overwrite the project value.
     }
   }, [isOpen, project]);
 
@@ -266,7 +225,7 @@ export default function ProjectModal({
           summary: data.summary,
         };
         setAlignmentResult(result);
-        
+
         // Auto-save alignment result if editing an existing project
         if (isEditing && project) {
           try {
@@ -275,8 +234,9 @@ export default function ProjectModal({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ alignment_result: result }),
             });
-          } catch {
-            // Silently fail
+          } catch (err) {
+            // Non-blocking: the value is re-sent on the next full save.
+            console.warn("Failed to auto-save alignment result:", err);
           }
         }
       }
@@ -302,6 +262,16 @@ export default function ProjectModal({
     const updated = [...urls];
     updated[index] = value;
     setUrls(updated);
+  };
+
+  const handleClearContent = () => {
+    // Persist a cleared state by saving an empty string.
+    setFetchedContent("");
+    setUploadedFiles([]);
+    setUploadStatus("");
+    setContentStatus("");
+    setAlignmentResult(null);
+    setAlignmentError("");
   };
 
   const handleGetContent = async () => {
@@ -444,9 +414,9 @@ export default function ProjectModal({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ db_schema: data }),
             });
-          } catch {
-            // Silently fail — schema is still shown in the UI and will be
-            // included in the next full save.
+          } catch (err) {
+            // Non-blocking: schema is still shown in the UI and is included in the next full save.
+            console.warn("Failed to auto-save database schema:", err);
           }
         }
       } else {
@@ -529,11 +499,28 @@ export default function ProjectModal({
     }
   };
 
+  const handleR2rmlFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result;
+      if (typeof text === "string") {
+        setR2rmlMapping(text);
+        setMappingError("");
+        // Uploaded mapping is unvalidated — clear any stale Valid/Invalid badge.
+        setValidationResult(null);
+      }
+    };
+    reader.onerror = () => {
+      setMappingError("Failed to read the uploaded file.");
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
   const handleDownloadR2rmlMapping = () => {
     if (!r2rmlMapping) return;
-
-    const blob = new Blob([r2rmlMapping], { type: "text/turtle; charset=utf-8" });
-    const url = URL.createObjectURL(blob);
 
     const safeBase =
       (name && name.trim().length > 0 ? name : "r2rml-mapping")
@@ -543,13 +530,11 @@ export default function ProjectModal({
         .replace(/-+/g, "-")
         .replace(/^-|-$/g, "");
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${safeBase || "r2rml-mapping"}.ttl`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    downloadBlob(
+      r2rmlMapping,
+      `${safeBase || "r2rml-mapping"}.ttl`,
+      "text/turtle; charset=utf-8"
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -623,18 +608,12 @@ export default function ProjectModal({
 
   if (!isOpen) return null;
 
-  const inputClass =
-    "block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500";
-  const labelClass = "block text-sm font-medium text-gray-700 mb-1";
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
       onClick={handleBackdropClick}
     >
-      <div
-        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
-      >
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4 rounded-t-2xl">
           <h2 className="text-lg font-semibold text-gray-900">
@@ -657,914 +636,78 @@ export default function ProjectModal({
             </div>
           )}
 
-          {/* Section 1: Project Name */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
-                1
-              </div>
-              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                Project Details
-              </h3>
-            </div>
-            <div>
-              <label htmlFor="project-name" className={labelClass}>
-                Project Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="project-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="My Project"
-                required
-                className={inputClass}
-              />
-            </div>
-          </div>
+          <ProjectDetailsSection name={name} setName={setName} />
 
           <hr className="border-gray-200" />
 
-          {/* Section 2: URLs */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
-                2
-              </div>
-              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                Domain Ontology
-              </h3>
-            </div>
-            <p className="text-xs text-gray-500 mb-3">
-              Add URLs to data specifications or conceptual models.
-            </p>
-            <div className="space-y-2">
-              {urls.map((url, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <input
-                    type="url"
-                    value={url}
-                    onChange={(e) => updateUrl(index, e.target.value)}
-                    placeholder="https://example.com/schema.json"
-                    className={inputClass}
-                  />
-                  {urls.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeUrlField(index)}
-                      className="shrink-0 rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                      title="Remove URL"
-                    >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              ))}
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={addUrlField}
-                  className="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700 font-medium transition-colors"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add another URL
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleGetContent}
-                  disabled={isFetchingContent || urls.every((u) => !u.trim())}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isFetchingContent ? (
-                    <>
-                      <svg
-                        className="h-4 w-4 animate-spin"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      Fetching...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      Get Content
-                    </>
-                  )}
-                </button>
-
-                {/* File upload button */}
-                <input
-                  ref={uploadFileInputRef}
-                  type="file"
-                  accept=".txt,.md,.markdown,.json,.ttl"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileUpload}
-                />
-                <button
-                  type="button"
-                  onClick={() => uploadFileInputRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100 transition-colors"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" />
-                  </svg>
-                  Upload File
-                </button>
-              </div>
-
-              {/* Uploaded files list */}
-              {uploadedFiles.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {uploadedFiles.map((f, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-700 border border-violet-200"
-                    >
-                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                      </svg>
-                      {f.name}
-                      <span className="text-violet-400">({(f.size / 1024).toFixed(1)} KB)</span>
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {uploadStatus && (
-                <p className="text-xs text-violet-600 mt-1">{uploadStatus}</p>
-              )}
-
-              {contentStatus && (
-                <p className="text-xs text-emerald-600 mt-1">{contentStatus}</p>
-              )}
-
-              {/* Fetched content — editable */}
-              {fetchedContent !== null && (
-                <div className="mt-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className={labelClass + " mb-0"}>
-                      Fetched Content
-                      <span className="ml-1.5 font-normal text-gray-400">
-                        ({fetchedContent.length.toLocaleString()} chars)
-                      </span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Persist a cleared state by saving an empty string.
-                        setFetchedContent("");
-                        setUploadedFiles([]);
-                        setUploadStatus("");
-                        setContentStatus("");
-                        setAlignmentResult(null);
-                        setAlignmentError("");
-                      }}
-                      className="text-xs text-red-400 hover:text-red-600 transition-colors"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <textarea
-                    value={fetchedContent}
-                    onChange={(e) => setFetchedContent(e.target.value)}
-                    rows={8}
-                    className={`${inputClass} resize-y font-mono text-xs leading-relaxed text-gray-700 bg-gray-50`}
-                    placeholder="Content will appear here after fetching URLs or uploading files. You can also type or paste content directly."
-                  />
-                </div>
-              )}
-
-            </div>
-          </div>
+          <OntologySection
+            urls={urls}
+            addUrlField={addUrlField}
+            removeUrlField={removeUrlField}
+            updateUrl={updateUrl}
+            handleGetContent={handleGetContent}
+            isFetchingContent={isFetchingContent}
+            uploadFileInputRef={uploadFileInputRef}
+            handleFileUpload={handleFileUpload}
+            uploadedFiles={uploadedFiles}
+            uploadStatus={uploadStatus}
+            contentStatus={contentStatus}
+            fetchedContent={fetchedContent}
+            setFetchedContent={setFetchedContent}
+            onClearContent={handleClearContent}
+          />
 
           <hr className="border-gray-200" />
 
-          {/* Section 3: Database */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
-                3
-              </div>
-              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                Database Connection
-              </h3>
-            </div>
-            <p className="text-xs text-gray-500 mb-3">
-              Configure a database connection for this project (optional).
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="db-type" className={labelClass}>
-                  Type
-                </label>
-                <select
-                  id="db-type"
-                  value={dbType}
-                  onChange={(e) => setDbType(e.target.value)}
-                  className={inputClass}
-                >
-                  <option value="">Select type...</option>
-                  {DB_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="db-name" className={labelClass}>
-                  Name
-                </label>
-                <input
-                  id="db-name"
-                  type="text"
-                  value={dbName}
-                  onChange={(e) => setDbName(e.target.value)}
-                  placeholder="My Database"
-                  className={inputClass}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="db-host" className={labelClass}>
-                  Host
-                </label>
-                <input
-                  id="db-host"
-                  type="text"
-                  value={dbHost}
-                  onChange={(e) => setDbHost(e.target.value)}
-                  placeholder="localhost"
-                  className={inputClass}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="db-port" className={labelClass}>
-                  Port
-                </label>
-                <input
-                  id="db-port"
-                  type="number"
-                  value={dbPort}
-                  onChange={(e) => setDbPort(e.target.value)}
-                  placeholder="5432"
-                  className={inputClass}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="db-database" className={labelClass}>
-                  Database
-                </label>
-                <input
-                  id="db-database"
-                  type="text"
-                  value={dbDatabase}
-                  onChange={(e) => setDbDatabase(e.target.value)}
-                  placeholder="mydb"
-                  className={inputClass}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="db-user" className={labelClass}>
-                  User
-                </label>
-                <input
-                  id="db-user"
-                  type="text"
-                  value={dbUser}
-                  onChange={(e) => setDbUser(e.target.value)}
-                  placeholder="postgres"
-                  className={inputClass}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="db-password" className={labelClass}>
-                  Password
-                </label>
-                <input
-                  id="db-password"
-                  type="password"
-                  value={dbPassword}
-                  onChange={(e) => setDbPassword(e.target.value)}
-                  placeholder="Enter password"
-                  className={inputClass}
-                />
-              </div>
-
-              <div className="flex items-end pb-1">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={dbSsl}
-                    onChange={(e) => setDbSsl(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                  />
-                  <span className="text-sm text-gray-700">Enable SSL</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Test Connection & Get Schema */}
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={handleTestConnection}
-                disabled={isTestingConnection || !dbType || !dbHost || !dbDatabase}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isTestingConnection ? (
-                  <>
-                    <svg
-                      className="h-4 w-4 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Testing...
-                  </>
-                ) : (
-                  <>
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    Test Connection
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleGetSchema}
-                disabled={isFetchingSchema || !dbType || !dbHost || !dbDatabase}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isFetchingSchema ? (
-                  <>
-                    <svg
-                      className="h-4 w-4 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Fetching Schema...
-                  </>
-                ) : (
-                  <>
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-                    </svg>
-                    Get Schema
-                  </>
-                )}
-              </button>
-
-              {/* Download Schema — only visible once schema is fetched */}
-              {schemaData && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const json = JSON.stringify(schemaData, null, 2);
-                    const blob = new Blob([json], { type: "application/json" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `${dbDatabase || "schema"}-schema.json`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Download Schema
-                </button>
-              )}
-
-              {connectionStatus && (
-                <p
-                  className={`text-xs ${
-                    connectionStatus.type === "success"
-                      ? "text-emerald-600"
-                      : "text-red-600"
-                  }`}
-                >
-                  {connectionStatus.type === "success" ? "\u2713 " : "\u2717 "}
-                  {connectionStatus.message}
-                </p>
-              )}
-            </div>
-
-            {/* Schema Error */}
-            {schemaError && (
-              <div className="mt-3 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                {schemaError}
-              </div>
-            )}
-
-            {/* Schema Display */}
-            {schemaData && (
-              <div className="mt-4 rounded-lg border border-violet-200 bg-violet-50/50">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-violet-200">
-                  <div>
-                    <h4 className="text-sm font-semibold text-violet-900">
-                      Database Schema
-                    </h4>
-                    <p className="text-xs text-violet-600 mt-0.5">
-                      {schemaData.database} &mdash; {schemaData.tableCount} table{schemaData.tableCount !== 1 ? "s" : ""}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSchemaData(null)}
-                    className="rounded-lg p-1 text-violet-400 hover:bg-violet-100 hover:text-violet-600 transition-colors"
-                    title="Close schema"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="max-h-72 overflow-y-auto px-4 py-3 space-y-4">
-                  {schemaData.tables.length === 0 ? (
-                    <p className="text-sm text-gray-500 italic">No tables found in the public schema.</p>
-                  ) : (
-                    schemaData.tables.map((table) => (
-                      <div key={table.name}>
-                        <h5 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5 mb-2">
-                          <svg className="h-3.5 w-3.5 text-violet-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          {table.name}
-                        </h5>
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full text-xs">
-                            <thead>
-                              <tr className="text-left text-gray-500">
-                                <th className="pb-1 pr-4 font-medium">Column</th>
-                                <th className="pb-1 pr-4 font-medium">Type</th>
-                                <th className="pb-1 pr-4 font-medium">Nullable</th>
-                                <th className="pb-1 pr-4 font-medium">Default</th>
-                                <th className="pb-1 font-medium">Constraints</th>
-                              </tr>
-                            </thead>
-                            <tbody className="text-gray-700">
-                              {table.columns.map((col) => (
-                                <tr key={col.name} className="border-t border-violet-100">
-                                  <td className="py-1 pr-4 font-mono font-medium text-gray-900">
-                                    {col.name}
-                                  </td>
-                                  <td className="py-1 pr-4 font-mono text-violet-700">
-                                    {col.type}
-                                  </td>
-                                  <td className="py-1 pr-4">
-                                    {col.nullable ? (
-                                      <span className="text-gray-400">YES</span>
-                                    ) : (
-                                      <span className="text-orange-600 font-medium">NOT NULL</span>
-                                    )}
-                                  </td>
-                                  <td className="py-1 pr-4 font-mono text-gray-500 max-w-[120px] truncate" title={col.default || ""}>
-                                    {col.default || <span className="text-gray-300">&mdash;</span>}
-                                  </td>
-                                  <td className="py-1 space-x-1">
-                                    {col.isPrimaryKey && (
-                                      <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
-                                        PK
-                                      </span>
-                                    )}
-                                    {col.isUnique && (
-                                      <span className="inline-block rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">
-                                        UNIQUE
-                                      </span>
-                                    )}
-                                    {col.foreignKey && (
-                                      <span
-                                        className="inline-block rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800"
-                                        title={`References ${col.foreignKey.table}.${col.foreignKey.column}`}
-                                      >
-                                        FK &rarr; {col.foreignKey.table}.{col.foreignKey.column}
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+          <DatabaseSection
+            dbType={dbType}
+            setDbType={setDbType}
+            dbName={dbName}
+            setDbName={setDbName}
+            dbHost={dbHost}
+            setDbHost={setDbHost}
+            dbPort={dbPort}
+            setDbPort={setDbPort}
+            dbDatabase={dbDatabase}
+            setDbDatabase={setDbDatabase}
+            dbUser={dbUser}
+            setDbUser={setDbUser}
+            dbPassword={dbPassword}
+            setDbPassword={setDbPassword}
+            dbSsl={dbSsl}
+            setDbSsl={setDbSsl}
+            handleTestConnection={handleTestConnection}
+            isTestingConnection={isTestingConnection}
+            connectionStatus={connectionStatus}
+            handleGetSchema={handleGetSchema}
+            isFetchingSchema={isFetchingSchema}
+            schemaData={schemaData}
+            setSchemaData={setSchemaData}
+            schemaError={schemaError}
+          />
 
           <hr className="border-gray-200" />
 
-          {/* Section 4: Mapping Configuration */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
-                4
-              </div>
-              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                Mapping Configuration
-              </h3>
-            </div>
-            <p className="text-xs text-gray-500">
-              Generate an R2RML mapping that links data sources (ontology) to the physical database schema.
-              Both data source content and database schema must be fetched first.
-            </p>
-
-            {/* Check Alignment Button */}
-            {!alignmentResult && !isCheckingAlignment && (
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleCheckAlignment}
-                  disabled={!fetchedContent || !schemaData}
-                  className="flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  title={
-                    !fetchedContent && !schemaData
-                      ? "Fetch data source content and database schema first"
-                      : !fetchedContent
-                      ? "Fetch data source content first (Section 2)"
-                      : !schemaData
-                      ? "Fetch database schema first (Section 3)"
-                      : "Check if data sources and database are from the same domain"
-                  }
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                  Check Alignment
-                </button>
-                {!fetchedContent && !schemaData && (
-                  <span className="text-xs text-amber-600">
-                    Requires data source content and database schema
-                  </span>
-                )}
-                {fetchedContent && !schemaData && (
-                  <span className="text-xs text-amber-600">
-                    Requires database schema (Section 3)
-                  </span>
-                )}
-                {!fetchedContent && schemaData && (
-                  <span className="text-xs text-amber-600">
-                    Requires data source content (Section 2)
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Alignment Check Status */}
-            {isCheckingAlignment && (
-              <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-                <svg className="h-4 w-4 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                <span className="text-sm text-blue-700">Checking domain alignment between data sources and database...</span>
-              </div>
-            )}
-
-            {alignmentError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-                <p className="text-sm text-red-700">Alignment check failed: {alignmentError}</p>
-                <button
-                  type="button"
-                  onClick={handleCheckAlignment}
-                  className="mt-1 text-xs font-medium text-red-600 underline hover:text-red-800"
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-
-            {alignmentResult && (
-              <div
-                className={`rounded-lg border px-4 py-3 space-y-3 ${
-                  alignmentResult.recommendation === "proceed"
-                    ? "border-green-200 bg-green-50"
-                    : alignmentResult.recommendation === "warning"
-                    ? "border-amber-200 bg-amber-50"
-                    : "border-red-200 bg-red-50"
-                }`}
-              >
-                {/* Score header */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {alignmentResult.recommendation === "proceed" ? (
-                      <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    ) : alignmentResult.recommendation === "warning" ? (
-                      <svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                    ) : (
-                      <svg className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    )}
-                    <span
-                      className={`text-sm font-semibold ${
-                        alignmentResult.recommendation === "proceed"
-                          ? "text-green-800"
-                          : alignmentResult.recommendation === "warning"
-                          ? "text-amber-800"
-                          : "text-red-800"
-                      }`}
-                    >
-                      Domain Alignment: {alignmentResult.score}%
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCheckAlignment}
-                    disabled={isCheckingAlignment}
-                    className="text-xs text-gray-500 hover:text-gray-700 underline"
-                    title="Re-check alignment"
-                  >
-                    Re-check
-                  </button>
-                </div>
-
-                {/* Domain comparison */}
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="rounded bg-white/60 px-2 py-0.5 font-medium text-gray-700">
-                    {alignmentResult.ontologyDomain}
-                  </span>
-                  <svg className="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                  </svg>
-                  <span className="rounded bg-white/60 px-2 py-0.5 font-medium text-gray-700">
-                    {alignmentResult.databaseDomain}
-                  </span>
-                </div>
-
-                {/* Summary */}
-                {alignmentResult.summary && (
-                  <p
-                    className={`text-xs ${
-                      alignmentResult.recommendation === "proceed"
-                        ? "text-green-700"
-                        : alignmentResult.recommendation === "warning"
-                        ? "text-amber-700"
-                        : "text-red-700"
-                    }`}
-                  >
-                    {alignmentResult.summary}
-                  </p>
-                )}
-
-
-                {/* Mismatch notice */}
-                {alignmentResult.recommendation === "mismatch" && (
-                  <p className="text-xs font-medium text-red-700 pt-1">
-                    Mapping generation is disabled due to domain mismatch. Use matching data sources and database to proceed.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Mapping action buttons */}
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleGenerateR2rml}
-                disabled={
-                  !fetchedContent ||
-                  !schemaData ||
-                  isGeneratingMapping ||
-                  isCheckingAlignment ||
-                  alignmentResult?.recommendation === "mismatch"
-                }
-                className="flex items-center gap-2 rounded-lg border border-purple-300 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-700 transition-colors hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50"
-                title={
-                  !fetchedContent && !schemaData
-                    ? "Fetch data source content and database schema first"
-                    : !fetchedContent
-                    ? "Fetch data source content first (Section 2)"
-                    : !schemaData
-                    ? "Fetch database schema first (Section 3)"
-                    : isCheckingAlignment
-                    ? "Waiting for alignment check..."
-                    : alignmentResult?.recommendation === "mismatch"
-                    ? "Domain mismatch detected. Use matching data sources and database to proceed."
-                    : isGeneratingMapping
-                    ? "Generating mapping..."
-                    : "Generate R2RML mapping from data sources and database schema"
-                }
-              >
-                {isGeneratingMapping ? (
-                  <>
-                    <svg
-                      className="h-4 w-4 animate-spin"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Generating R2RML Mapping...
-                  </>
-                ) : (
-                  <>
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                    </svg>
-                    Generate R2RML Mapping
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => r2rmlFileInputRef.current?.click()}
-                className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                title="Upload an existing R2RML mapping file (.ttl, .rml, .n3, .txt)"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                Upload R2RML
-              </button>
-
-                <button
-                  type="button"
-                  onClick={handleDownloadR2rmlMapping}
-                  disabled={!r2rmlMapping?.trim()}
-                  className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Download the current R2RML mapping as a .ttl file"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"
-                    />
-                  </svg>
-                  Download mapping
-                </button>
-
-              <input
-                ref={r2rmlFileInputRef}
-                type="file"
-                accept=".ttl,.rml,.n3,.txt,.rdf"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const reader = new FileReader();
-                  reader.onload = (evt) => {
-                    const text = evt.target?.result;
-                    if (typeof text === "string") {
-                      setR2rmlMapping(text);
-                      setMappingError("");
-                    }
-                  };
-                  reader.onerror = () => {
-                    setMappingError("Failed to read the uploaded file.");
-                  };
-                  reader.readAsText(file);
-                  e.target.value = "";
-                }}
-              />
-
-            </div>
-
-            {mappingError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm text-red-700">{mappingError}</p>
-              </div>
-            )}
-
-            {r2rmlMapping !== null && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-sm font-medium text-gray-700">
-                    R2RML Mapping (Turtle)
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] text-gray-400">Editable</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(r2rmlMapping);
-                      }}
-                      className="text-xs text-purple-600 hover:text-purple-800 transition-colors"
-                    >
-                      Copy to clipboard
-                    </button>
-                  </div>
-                </div>
-                <textarea
-                  value={r2rmlMapping}
-                  onChange={(e) => {
-                    setR2rmlMapping(e.target.value);
-                    setValidationResult(null);
-                  }}
-                  rows={14}
-                  className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-xs text-gray-800 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                />
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleValidateR2rml}
-                    disabled={!r2rmlMapping?.trim() || isValidating}
-                    className="flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isValidating ? (
-                      <>
-                        <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                        Validating...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Validate Mapping
-                      </>
-                    )}
-                  </button>
-
-                  {validationResult && (
-                    <span className={`text-sm font-medium ${validationResult.valid ? "text-green-600" : "text-red-600"}`}>
-                      {validationResult.valid ? "Valid" : "Invalid"}
-                    </span>
-                  )}
-                </div>
-
-                {validationResult && (
-                  <div className={`rounded-lg border p-3 space-y-2 ${validationResult.valid ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}>
-                    {/* Stats */}
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-                      <span>{validationResult.stats.tripleCount} triples</span>
-                      <span>{validationResult.stats.triplesMaps.length} TriplesMap(s)</span>
-                      <span>{validationResult.stats.referencedTables.length} table(s)</span>
-                      <span>{validationResult.stats.referencedColumns.length} column(s)</span>
-                    </div>
-
-                    {/* Issues */}
-                    {validationResult.issues.length > 0 ? (
-                      <ul className="space-y-1">
-                        {validationResult.issues.map((issue, i) => (
-                          <li key={i} className="flex items-start gap-2 text-xs">
-                            {issue.level === "error" ? (
-                              <svg className="h-4 w-4 flex-shrink-0 text-red-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                            ) : (
-                              <svg className="h-4 w-4 flex-shrink-0 text-amber-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                              </svg>
-                            )}
-                            <span className={issue.level === "error" ? "text-red-700" : "text-amber-700"}>
-                              {issue.message}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs text-green-700">
-                        No issues found. The mapping is syntactically valid and structurally correct.
-                        {schemaData ? " All referenced tables and columns match the database schema." : ""}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <MappingSection
+            fetchedContent={fetchedContent}
+            schemaData={schemaData}
+            alignmentResult={alignmentResult}
+            isCheckingAlignment={isCheckingAlignment}
+            alignmentError={alignmentError}
+            handleCheckAlignment={handleCheckAlignment}
+            r2rmlMapping={r2rmlMapping}
+            setR2rmlMapping={setR2rmlMapping}
+            setValidationResult={setValidationResult}
+            isGeneratingMapping={isGeneratingMapping}
+            handleGenerateR2rml={handleGenerateR2rml}
+            mappingError={mappingError}
+            r2rmlFileInputRef={r2rmlFileInputRef}
+            handleR2rmlFileUpload={handleR2rmlFileUpload}
+            handleDownloadR2rmlMapping={handleDownloadR2rmlMapping}
+            isValidating={isValidating}
+            validationResult={validationResult}
+            handleValidateR2rml={handleValidateR2rml}
+          />
 
           {/* Footer Buttons */}
           <div className="flex items-center justify-end gap-3 pt-2">
@@ -1582,15 +725,7 @@ export default function ProjectModal({
               className="flex items-center justify-center rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isLoading ? (
-                <svg
-                  className="h-5 w-5 animate-spin text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
+                <Spinner className="h-5 w-5 text-white" />
               ) : isEditing ? (
                 "Save Changes"
               ) : (
