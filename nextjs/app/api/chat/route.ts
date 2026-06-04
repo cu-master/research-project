@@ -568,6 +568,10 @@ export async function POST(request: Request) {
         "Content-Type": "application/x-ndjson; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
+        // Expose the model that actually served this request (after DB rehydration),
+        // so observability/benchmarks report the true model, not a stale .env label.
+        "x-llm-provider": llmProvider,
+        "x-llm-model": llmModel,
       },
     });
   } catch (error) {

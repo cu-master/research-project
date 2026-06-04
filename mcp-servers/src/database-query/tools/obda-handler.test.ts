@@ -56,6 +56,25 @@ describe("buildPropertiesContent", () => {
         expect(result).toContain("jdbc.user=admin");
         expect(result).toContain("jdbc.password=secret");
     });
+
+    it("forces read-only via the JDBC options parameter", () => {
+        const result = buildPropertiesContent(baseConfig);
+        expect(result).toContain("options=-c%20default_transaction_read_only=on");
+    });
+
+    it("combines sslmode and read-only options into one query string", () => {
+        const result = buildPropertiesContent({ ...baseConfig, ssl: true });
+        expect(result).toContain(
+            "?sslmode=require&options=-c%20default_transaction_read_only=on"
+        );
+    });
+
+    it("uses read-only options as the sole query param when ssl is false", () => {
+        const result = buildPropertiesContent({ ...baseConfig, ssl: false });
+        expect(result).toContain(
+            "/testdb?options=-c%20default_transaction_read_only=on"
+        );
+    });
 });
 
 describe("extractSparqlFromResponse", () => {

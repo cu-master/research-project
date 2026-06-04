@@ -99,6 +99,10 @@ export interface BenchmarkRunArtifact {
   toolNames: string[];
   toolSelectionPass: boolean | null;
   timeoutLike: boolean;
+  /** Provider the API reported serving this run (x-llm-provider header); null if not exposed. */
+  modelProvider?: string | null;
+  /** Model the API reported serving this run (x-llm-model header); null if not exposed. */
+  modelName?: string | null;
   error?: string;
 }
 
@@ -123,8 +127,11 @@ export interface CaseMetrics {
 export interface BenchmarkSummary {
   startedAt: string;
   finishedAt: string;
+  /** Provider/model label derived from env config (fallback / "configured" value). */
   modelProvider?: string;
   modelName?: string;
+  /** Distinct `provider/model` strings the API actually reported across runs (source of truth). */
+  observedModels?: string[];
   modelTemperature?: number;
   modelSeed?: number;
   totalCases: number;

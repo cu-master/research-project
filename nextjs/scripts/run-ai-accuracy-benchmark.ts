@@ -33,6 +33,14 @@ interface ChatApiResponse {
   error?: string;
 }
 
+interface ChatPostResult {
+  statusCode: number;
+  body: ChatApiResponse;
+  /** Provider/model the API reported serving this request, or null if not exposed. */
+  modelProvider: string | null;
+  modelName: string | null;
+}
+
 interface ChatStreamDoneEvent {
   type: "done";
   response: string;
@@ -397,6 +405,8 @@ async function executeBenchmarkCase(params: {
     let toolSelectionPass: boolean | null = null;
     let toolCallCount = 0;
     let toolNames: string[] = [];
+    let modelProvider: string | null = null;
+    let modelName: string | null = null;
     let runError: string | undefined;
     let timeoutLike = false;
 
@@ -415,6 +425,8 @@ async function executeBenchmarkCase(params: {
       });
 
       statusCode = response.statusCode;
+      modelProvider = response.modelProvider;
+      modelName = response.modelName;
       responseText = response.body.response ?? response.body.error ?? "";
       const toolEntries = response.body.toolsUsed ?? [];
       const toolObservations = toolEntries
@@ -443,6 +455,7 @@ async function executeBenchmarkCase(params: {
       resultRowCount,
       responseSuccess,
       toolCallCount,
+      toolNames,
       error: runError,
       timeoutLike,
     });
@@ -465,6 +478,8 @@ async function executeBenchmarkCase(params: {
       toolNames,
       toolSelectionPass,
       timeoutLike,
+      modelProvider,
+      modelName,
       error: runError,
     });
 
@@ -484,8 +499,8 @@ async function postChatWithRetry(params: {
   payload: Record<string, unknown>;
   requestRetries: number;
   retryDelayMs: number;
-}): Promise<{ statusCode: number; body: ChatApiResponse }> {
-  let lastResult: { statusCode: number; body: ChatApiResponse } | undefined;
+}): Promise<ChatPostResult> {
+  let lastResult: ChatPostResult | undefined;
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= params.requestRetries; attempt += 1) {
@@ -528,7 +543,7 @@ async function postChat(params: {
   cookie: string;
   timeoutMs: number;
   payload: Record<string, unknown>;
-}): Promise<{ statusCode: number; body: ChatApiResponse }> {
+}): Promise<ChatPostResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), params.timeoutMs);
 
@@ -545,7 +560,14 @@ async function postChat(params: {
 
     const rawBody = await response.text();
     const body = parseChatResponse(rawBody);
-    return { statusCode: response.status, body };
+    return {
+      statusCode: response.status,
+      body,
+      // Actual model that served the request, surfaced by /api/chat. Null on older
+      // servers or pre-model fast paths (budget/mutation guards) that never invoke a model.
+      modelProvider: response.headers.get("x-llm-provider"),
+      modelName: response.headers.get("x-llm-model"),
+    };
   } finally {
     clearTimeout(timeout);
   }
