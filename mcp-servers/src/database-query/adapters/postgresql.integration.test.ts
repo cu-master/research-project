@@ -164,6 +164,24 @@ describe("PostgreSQLAdapter.executeQuery()", () => {
         expect(result.error).toBeTruthy();
         expect(result.error).toMatch(/nonexistent_table_xyz/);
     });
+
+    // Even with superuser credentials, the session is forced read-only,
+    // so the database itself rejects writes regardless of any app-layer check.
+    it("rejects an INSERT at the database level (read-only transaction)", async () => {
+        const result = await adapter.executeQuery(
+            "INSERT INTO customers (name, email) VALUES ('Mallory', 'mallory@test.com')"
+        );
+        expect(result.error).toBeTruthy();
+        expect(result.error).toMatch(/read-only transaction/i);
+    });
+
+    it("rejects a CREATE TABLE at the database level (read-only transaction)", async () => {
+        const result = await adapter.executeQuery(
+            "CREATE TABLE should_not_exist (id INTEGER)"
+        );
+        expect(result.error).toBeTruthy();
+        expect(result.error).toMatch(/read-only transaction/i);
+    });
 });
 
 // ── disconnect / reconnect ────────────────────────────────────────────────────

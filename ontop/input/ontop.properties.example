@@ -1,0 +1,15 @@
+# Ontop JDBC connection — TEMPLATE.
+#
+# This file is generated at runtime by the database-query MCP server
+# (see buildPropertiesContent in mcp-servers/src/database-query/tools/obda-handler.ts);
+# the real ontop.properties is gitignored because it holds live DB credentials.
+# Copy this to ontop.properties only if you need to run Ontop standalone.
+#
+# NFR-01: the ?options=-c default_transaction_read_only=on parameter forces the
+# JDBC session read-only as defense-in-depth. Use the read-only chatbot_ro role
+# (see mcp-servers/scripts/create-readonly-role.sql) as jdbc.user.
+
+jdbc.url=jdbc:postgresql://host.docker.internal:5432/your_database?options=-c%20default_transaction_read_only=on
+jdbc.driver=org.postgresql.Driver
+jdbc.user=chatbot_ro
+jdbc.password=your_readonly_password

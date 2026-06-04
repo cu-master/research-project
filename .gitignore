@@ -31,6 +31,8 @@ Thumbs.db
 # Ontop runtime data
 ontop/data/
 ontop/logs/
+# Runtime-generated; holds live DB credentials. Use ontop.properties.example as a template.
+ontop/input/ontop.properties
 
 # AI benchmark generated outputs
 nextjs/benchmarks/results/

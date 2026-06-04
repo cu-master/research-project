@@ -111,10 +111,15 @@ export function buildPropertiesContent(dbConfig: DbConfig): string {
     host = "host.docker.internal";
   }
 
-  const sslParam = dbConfig.ssl ? "?sslmode=require" : "";
+  // Defense-in-depth read-only on the Ontop JDBC path (%20 = space);
+  // pairs with the chatbot_ro role (scripts/create-readonly-role.sql).
+  const params: string[] = [];
+  if (dbConfig.ssl) params.push("sslmode=require");
+  params.push("options=-c%20default_transaction_read_only=on");
+  const query = `?${params.join("&")}`;
 
   return [
-    `jdbc.url=jdbc:postgresql://${host}:${port}/${database}${sslParam}`,
+    `jdbc.url=jdbc:postgresql://${host}:${port}/${database}${query}`,
     `jdbc.driver=org.postgresql.Driver`,
     `jdbc.user=${escapePropertyValue(user)}`,
     `jdbc.password=${escapePropertyValue(password)}`,

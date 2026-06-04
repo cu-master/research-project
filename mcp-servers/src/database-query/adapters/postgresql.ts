@@ -37,6 +37,14 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
       connectionTimeoutMillis: 10000,
     });
 
+    // Defense-in-depth: force every pooled connection read-only at the
+    // session level, so writes are rejected even if the configured credentials
+    // are not the dedicated chatbot_ro role. The role-level guarantee (see
+    // scripts/create-readonly-role.sql) is the primary, database-level control.
+    this.pool.on("connect", (client) => {
+      client.query("SET default_transaction_read_only = on").catch(() => {});
+    });
+
     let client: pg.PoolClient | null = null;
     try {
       client = await this.pool.connect();
