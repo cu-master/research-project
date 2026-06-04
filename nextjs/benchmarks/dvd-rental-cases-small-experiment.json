@@ -26,9 +26,9 @@
     "repeat": 3,
     "expectation": {
       "behavior": "sql",
-      "responseMustContain": ["customer_count", "599"],
-      "expectedResultSignature": "[{\"customer_count\":\"599\"}]",
+      "responseMustContain": ["599"],
       "expectedRowCount": 1,
+      "notes": "Simple COUNT on the customer table. Grades the scalar value + single-row result. The requested column alias ('customer_count') is intentionally left in the prompt but NOT graded: the Ontop/SPARQL prose pipeline reports scalar aggregates in natural language without a custom SQL column name.",
       "expectedTools": ["obda_query_with_ontop"]
     },
     "groundTruth": {

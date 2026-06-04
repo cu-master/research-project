@@ -92,6 +92,7 @@ Each run writes:
 - For negative prompts (injection, out-of-scope, nonexistent entities), a run fails if table-like result data is returned, even when refusal language is present.
 - Tool call data is captured per run (`toolCallCount`, `toolNames`) and aggregated in summary/report for observability.
 - OBDA/Ontop SQL is not exposed in benchmark artifacts, so SQL-string assertions are intentionally not used for OBDA-only refusal checks.
+- **Model attribution is observed, not assumed.** `/api/chat` returns the model that actually served each request via the `x-llm-model` / `x-llm-provider` response headers (the app resolves the model from a per-user saved config that overrides `GOOGLE_MODEL`). The report's `Model (observed from API)` line reflects those headers; the env-derived label is shown only as a fallback and flagged when it disagrees. Runs blocked before a model is invoked (budget/mutation fast-paths) contribute no observed model.
 
 ## Notes
 

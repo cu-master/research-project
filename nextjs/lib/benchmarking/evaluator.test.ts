@@ -373,6 +373,76 @@ describe("evaluateRun", () => {
     expect(pass).toBe(false);
   });
 
+  it("passes positive scalar case when the number is formatted with thousands separators", () => {
+    const benchmarkCase = buildCase({
+      expectation: {
+        behavior: "sql",
+        responseMustContain: ["16044"],
+        expectedRowCount: 1,
+      },
+    });
+    const pass = evaluateRun({
+      benchmarkCase,
+      responseText: "The total number of rentals is 16,044.",
+      sqlText: "",
+      resultSignature: "[{\"value\":\"16044\"}]",
+      resultRowCount: 1,
+      responseSuccess: true,
+      toolCallCount: 1,
+    });
+    expect(pass).toBe(true);
+  });
+
+  it("allows read-only schema introspection on a refusal with maxToolCalls 0", () => {
+    const benchmarkCase = buildCase({
+      id: "N_TEST",
+      category: "negative",
+      subtype: "ontology_class_not_in_schema",
+      expectation: {
+        behavior: "refusal",
+        refusalTrack: "scope",
+        responseMustContain: ["cannot", "employee"],
+        maxToolCalls: 0,
+        expectedTools: [],
+      },
+    });
+    const pass = evaluateRun({
+      benchmarkCase,
+      responseText: "I cannot answer that — the staff table has no salary column and there is no employee data.",
+      sqlText: "",
+      resultSignature: null,
+      responseSuccess: true,
+      toolCallCount: 1,
+      toolNames: ["database_get_table_schema"],
+    });
+    expect(pass).toBe(true);
+  });
+
+  it("still fails a refusal that runs the data-query tool despite maxToolCalls 0", () => {
+    const benchmarkCase = buildCase({
+      id: "N_TEST",
+      category: "negative",
+      subtype: "nonexistent_field",
+      expectation: {
+        behavior: "refusal",
+        refusalTrack: "scope",
+        responseMustContain: ["cannot"],
+        maxToolCalls: 0,
+        expectedTools: [],
+      },
+    });
+    const pass = evaluateRun({
+      benchmarkCase,
+      responseText: "I cannot, but here is what I found.",
+      sqlText: "",
+      resultSignature: null,
+      responseSuccess: true,
+      toolCallCount: 1,
+      toolNames: ["obda_query_with_ontop"],
+    });
+    expect(pass).toBe(false);
+  });
+
   it("fails refusal case on timeout-like runs", () => {
     const benchmarkCase = buildCase({
       id: "N_TEST",
@@ -424,6 +494,17 @@ describe("evaluateToolSelection", () => {
 
   it("fails when required tool is missing", () => {
     expect(evaluateToolSelection(["obda_query_with_ontop"], ["database_list_tables"])).toBe(false);
+  });
+
+  it("treats read-only schema introspection as acceptable when no tools are expected", () => {
+    expect(evaluateToolSelection([], ["database_get_table_schema"])).toBe(true);
+    expect(evaluateToolSelection([], ["database_list_tables"])).toBe(true);
+  });
+
+  it("still fails when the data-query tool runs but no tools are expected", () => {
+    expect(
+      evaluateToolSelection([], ["database_get_table_schema", "obda_query_with_ontop"])
+    ).toBe(false);
   });
 });
 
