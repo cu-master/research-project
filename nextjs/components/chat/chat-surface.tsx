@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Attachment, Message, ToolCall } from "@/types/chat";
+import type { Attachment, Message, MessageRole, ToolCall } from "@/types/chat";
 import MessageBubble from "./message-bubble";
 import ChatInput from "./chat-input";
 import ProjectSelector from "./project-selector";
@@ -19,12 +19,43 @@ type ChatProgressEvent =
   | { type: "done"; response: string; toolsUsed?: ToolCall[]; latency?: number }
   | { type: "error"; message: string };
 
+// Shape of a message row returned by the session restore / fetch endpoints.
+interface DbMessageRow {
+  id: string;
+  role: MessageRole;
+  content: string;
+  created_at: string | number | Date;
+  attachments?: string | Attachment[] | null;
+  tools_used?: string | ToolCall[] | null;
+  latency?: string | number | null;
+}
+
+// Maps DB message rows to UI Message objects (attachments/tools_used may arrive as JSON strings).
+function mapDbMessagesToUi(rows: DbMessageRow[]): Message[] {
+  return rows.map((msg) => ({
+    id: msg.id,
+    role: msg.role,
+    content: msg.content,
+    createdAt: new Date(msg.created_at).getTime(),
+    attachments: msg.attachments
+      ? typeof msg.attachments === "string"
+        ? JSON.parse(msg.attachments)
+        : msg.attachments
+      : undefined,
+    toolsUsed: msg.tools_used
+      ? typeof msg.tools_used === "string"
+        ? JSON.parse(msg.tools_used)
+        : msg.tools_used
+      : undefined,
+    latency: msg.latency ? parseFloat(String(msg.latency)) : undefined,
+  }));
+}
+
 export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfaceProps) {
   const {
     currentSessionId,
     setCurrentSessionId,
     setHasUnsavedWork,
-    refreshSessions,
   } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -109,21 +140,7 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
           }
 
           if (data.messages && data.messages.length > 0) {
-            // Convert database messages to UI messages
-            const uiMessages: Message[] = data.messages.map((msg: any) => ({
-              id: msg.id,
-              role: msg.role,
-              content: msg.content,
-              createdAt: new Date(msg.created_at).getTime(),
-              attachments: msg.attachments 
-                ? (typeof msg.attachments === 'string' ? JSON.parse(msg.attachments) : msg.attachments)
-                : undefined,
-              toolsUsed: msg.tools_used 
-                ? (typeof msg.tools_used === 'string' ? JSON.parse(msg.tools_used) : msg.tools_used)
-                : undefined,
-              latency: msg.latency ? parseFloat(msg.latency) : undefined,
-            }));
-            setMessages(uiMessages);
+            setMessages(mapDbMessagesToUi(data.messages));
           } else {
             setMessages([]);
           }
@@ -140,20 +157,7 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
             }
 
             if (fallbackData.messages && fallbackData.messages.length > 0) {
-              const uiMessages: Message[] = fallbackData.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                createdAt: new Date(msg.created_at).getTime(),
-                attachments: msg.attachments 
-                  ? (typeof msg.attachments === 'string' ? JSON.parse(msg.attachments) : msg.attachments)
-                  : undefined,
-                toolsUsed: msg.tools_used 
-                  ? (typeof msg.tools_used === 'string' ? JSON.parse(msg.tools_used) : msg.tools_used)
-                  : undefined,
-                latency: msg.latency ? parseFloat(msg.latency) : undefined,
-              }));
-              setMessages(uiMessages);
+              setMessages(mapDbMessagesToUi(fallbackData.messages));
             } else {
               setMessages([]);
             }
@@ -271,8 +275,26 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
     setIsLoading(true);
     setHasUnsavedWork(true);
 
+    // Finalize the optimistic assistant message from a "done" event (shared by the
+    // streaming loop and the trailing-buffer parse).
+    const applyDoneEvent = (event: Extract<ChatProgressEvent, { type: "done" }>) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === optimisticAssistant.id
+            ? {
+                ...msg,
+                content: msg.content?.trim() ? msg.content : event.response,
+                progressSteps: undefined,
+                toolsUsed: event.toolsUsed,
+                latency: event.latency,
+              }
+            : msg
+        )
+      );
+      setHasUnsavedWork(false);
+    };
+
     try {
-      console.log("Sending message with sessionId:", sessionIdToUse);
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
@@ -364,26 +386,10 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
               )
             );
           } else if (event.type === "done") {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === optimisticAssistant.id
-                  ? {
-                      ...msg,
-                      content: msg.content?.trim() ? msg.content : event.response,
-                      progressSteps: undefined,
-                      toolsUsed: event.toolsUsed,
-                      latency: event.latency,
-                    }
-                  : msg
-              )
-            );
-            setHasUnsavedWork(false);
+            applyDoneEvent(event);
             setIsSendingMessage(false);
 
             setTimeout(() => {
-              if (refreshSessions) {
-                refreshSessions();
-              }
               window.dispatchEvent(
                 new CustomEvent("sessionUpdated", {
                   detail: { sessionId: sessionIdToUse },
@@ -401,20 +407,7 @@ export default function ChatSurface({ sessionId: sessionIdProp }: ChatSurfacePro
         try {
           const event = JSON.parse(finalTail) as ChatProgressEvent;
           if (event.type === "done") {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === optimisticAssistant.id
-                  ? {
-                      ...msg,
-                      content: msg.content?.trim() ? msg.content : event.response,
-                      progressSteps: undefined,
-                      toolsUsed: event.toolsUsed,
-                      latency: event.latency,
-                    }
-                  : msg
-              )
-            );
-            setHasUnsavedWork(false);
+            applyDoneEvent(event);
           }
         } catch {
           // Ignore malformed final chunk.
