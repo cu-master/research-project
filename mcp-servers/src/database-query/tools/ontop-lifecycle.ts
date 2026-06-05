@@ -1,18 +1,15 @@
-// Ontop container lifecycle: serializes config writes + container (re)starts and
-// waits for the SPARQL endpoint to become ready. ensureOntopConfigured is the entry point.
-import { exec } from "child_process";
-import { promisify } from "util";
+// Ontop config lifecycle: serializes config writes and waits for the SPARQL
+// endpoint to come back after Ontop's dev-mode reloads. ensureOntopConfigured is
+// the entry point. Ontop's own lifecycle (start/stop) is owned by docker compose;
+// running with ONTOP_DEV_MODE=true, Ontop restarts its endpoint whenever the
+// mapping/properties files change on disk, so we only need to write + wait.
 import * as crypto from "crypto";
-import { config } from "../config.js";
 import { type DbConfig, writeOntopConfig } from "./ontop-config.js";
-import { log } from "../../shared/logger.js";
-
-const execAsync = promisify(exec);
 
 let currentConfigHash: string | null = null;
 
-// Serializes config writes + container restarts so concurrent queries with
-// different mappings can't race against the running container's config.
+// Serializes config writes so concurrent queries with different mappings can't
+// race against each other (and against the endpoint reload they trigger).
 let ontopConfigLock: Promise<unknown> = Promise.resolve();
 function withOntopLock<T>(fn: () => Promise<T>): Promise<T> {
   const next = ontopConfigLock.then(fn, fn);
@@ -20,29 +17,9 @@ function withOntopLock<T>(fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
-async function restartOntopContainer(): Promise<void> {
-  try {
-    await execAsync("docker compose up -d --force-recreate ontop", {
-      cwd: config.projectRoot,
-    });
-    log.info("[Ontop] Container recreated");
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to recreate Ontop container: ${msg}`);
-  }
-}
-
-async function startOntopContainer(): Promise<void> {
-  try {
-    await execAsync("docker compose up -d ontop", {
-      cwd: config.projectRoot,
-    });
-    log.info("[Ontop] Container started");
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to start Ontop container: ${msg}`);
-  }
-}
+// Gives Ontop's dev-mode file watcher time to notice the new config and begin
+// cycling the endpoint, so we don't observe the old mapping as "ready".
+const RELOAD_SETTLE_MS = 2000;
 
 function isOntopReady(ontopSparqlUrl: string): Promise<boolean> {
   const testQuery = encodeURIComponent("ASK { ?s ?p ?o }");
@@ -84,14 +61,14 @@ export async function ensureOntopConfigured(
     const needsReconfigure = currentConfigHash !== configHash;
 
     if (needsReconfigure) {
+      // Write the new mapping/properties to the shared volume. Ontop dev-mode
+      // detects the change and restarts its endpoint on its own — no container
+      // restart from here (which would need host Docker access).
       await writeOntopConfig(r2rmlMapping, dbConfig);
 
-      const ready = await isOntopReady(ontopSparqlUrl);
-      if (ready) {
-        await restartOntopContainer();
-      } else {
-        await startOntopContainer();
-      }
+      // Settle so we wait for the *reloaded* endpoint rather than catching the
+      // old mapping still briefly serving before dev-mode cycles it.
+      await new Promise((resolve) => setTimeout(resolve, RELOAD_SETTLE_MS));
 
       const isReady = await waitForOntop(ontopSparqlUrl);
       if (isReady) {
@@ -100,11 +77,12 @@ export async function ensureOntopConfigured(
       return isReady;
     }
 
+    // Config unchanged: endpoint may still be initializing (lazy-init defers
+    // loading until the first query), so probe and wait if needed.
     if (await isOntopReady(ontopSparqlUrl)) {
       return true;
     }
 
-    await startOntopContainer();
     const isReady = await waitForOntop(ontopSparqlUrl);
     if (isReady) {
       currentConfigHash = configHash;

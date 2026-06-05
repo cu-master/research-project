@@ -774,11 +774,16 @@ function normalizeColumnKey(key: string): string {
     .toLowerCase()
     .trim()
     .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_]/g, "");
+    .replace(/[^a-z0-9_]/g, "")
+    // Collapse runs of underscores and trim leading/trailing ones so a stripped
+    // unit (e.g. "Rental Price ($)" -> "rental_price_") canonicalizes cleanly.
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 const COLUMN_KEY_ALIAS_GROUPS: string[][] = [
   ["id", "film_id", "movie_id"],
+  ["rental_id", "rental_transaction_id", "transaction_id"],
   ["title", "movie_title", "film_title"],
   ["rental_price", "rental_rate", "price"],
   ["first_name", "customer_first_name"],

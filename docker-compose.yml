@@ -1,4 +1,60 @@
+name: cu-research-chatbot
+
+# Shared LLM-provider env block (merged into each service that talks to an LLM).
+# Set LLM_PROVIDER + the matching API key in your .env (see .env.docker.example).
+x-llm-env: &llm-env
+  LLM_PROVIDER: ${LLM_PROVIDER:-google}
+  GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+  GOOGLE_MODEL: ${GOOGLE_MODEL:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-}
+  GROQ_API_KEY: ${GROQ_API_KEY:-}
+  GROQ_MODEL: ${GROQ_MODEL:-}
+
 services:
+  # ── Application / metadata database (users, projects, sessions, schemas) ────
+  app-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${APP_DB_USER:-chatbot}
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD:-chatbot}
+      POSTGRES_DB: ${APP_DB_NAME:-chatbot_db}
+    volumes:
+      - app-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${APP_DB_USER:-chatbot} -d ${APP_DB_NAME:-chatbot_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [appnet]
+
+  # ── Sample target database (dvdrental) the chatbot queries read-only ────────
+  # First-boot init restores the dump from ./data/dvd-rental and creates chatbot_ro.
+  target-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${TARGET_DB_ADMIN_USER:-postgres}
+      POSTGRES_PASSWORD: ${TARGET_DB_ADMIN_PASSWORD:-postgres}
+      POSTGRES_DB: ${TARGET_DB_NAME:-dvdrental}
+      CHATBOT_RO_PASSWORD: ${TARGET_DB_RO_PASSWORD:-ro_password}
+    volumes:
+      - target-db-data:/var/lib/postgresql/data
+      - ./data/dvd-rental:/dvdrental-src:ro
+      - ./docker/target-db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TARGET_DB_ADMIN_USER:-postgres} -d ${TARGET_DB_NAME:-dvdrental}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [appnet]
+
+  # ── Ontop OBDA SPARQL endpoint ──────────────────────────────────────────────
+  # Dev mode watches the shared config volume and restarts the endpoint whenever
+  # database-query writes a new mapping/properties — no container restart needed.
   ontop:
     image: ontop/ontop:5.3.1
     container_name: ontop-sparql-endpoint
@@ -6,9 +62,11 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./ontop/input:/opt/ontop/input:ro
+      # Shared with database-query: it writes mapping.ttl + ontop.properties here.
+      - ontop-input:/opt/ontop/input
       - ./ontop/jdbc:/opt/ontop/jdbc:ro
     extra_hosts:
+      # Lets Ontop reach a target DB running on the host machine (host.docker.internal).
       - "host.docker.internal:host-gateway"
     environment:
       ONTOP_MAPPING_FILE: /opt/ontop/input/mapping.ttl
@@ -16,8 +74,85 @@ services:
       ONTOP_LAZY_INIT: "true"
       ONTOP_DEV_MODE: "true"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/sparql?query=ASK%7B%3Fs%20%3Fp%20%3Fo%7D || exit 1"]
+      # Probes that the HTTP server is up (the portal responds before lazy-init).
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ >/dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5
       start_period: 30s
+    networks: [appnet]
+
+  # ── Model Interpretation MCP server (RAG retriever) ────────────────────────
+  model-interpretation:
+    build: ./mcp-servers
+    image: cu-research/mcp-servers
+    restart: unless-stopped
+    command: ["node", "dist/model-interpretation/index.js"]
+    environment:
+      <<: *llm-env
+      MODEL_INTERPRETATION_SERVER_PORT: 3001
+      MCP_API_TOKEN: ${MCP_API_TOKEN:-}
+      MCP_CORS_ORIGINS: ${MCP_CORS_ORIGINS:-http://localhost:3000}
+      REQUEST_SIZE_LIMIT: ${MCP_REQUEST_SIZE_LIMIT:-10mb}
+      MCP_RATE_LIMIT_MAX: ${MCP_RATE_LIMIT_MAX:-60}
+      MCP_RATE_LIMIT_WINDOW_MS: ${MCP_RATE_LIMIT_WINDOW_MS:-60000}
+    networks: [appnet]
+
+  # ── Database Query MCP server (RAG generator) ──────────────────────────────
+  database-query:
+    build: ./mcp-servers
+    image: cu-research/mcp-servers
+    restart: unless-stopped
+    command: ["node", "dist/database-query/index.js"]
+    environment:
+      <<: *llm-env
+      DB_MCP_SERVER_PORT: 3002
+      MCP_API_TOKEN: ${MCP_API_TOKEN:-}
+      MCP_CORS_ORIGINS: ${MCP_CORS_ORIGINS:-http://localhost:3000}
+      REQUEST_SIZE_LIMIT: ${MCP_REQUEST_SIZE_LIMIT:-10mb}
+      MCP_RATE_LIMIT_MAX: ${MCP_RATE_LIMIT_MAX:-60}
+      MCP_RATE_LIMIT_WINDOW_MS: ${MCP_RATE_LIMIT_WINDOW_MS:-60000}
+      # Reach Ontop over the compose network; write its config to the shared volume.
+      ONTOP_SPARQL_URL: http://ontop:8080/sparql
+      ONTOP_INPUT_DIR: /shared/ontop-input
+    volumes:
+      - ontop-input:/shared/ontop-input
+    depends_on:
+      ontop:
+        condition: service_started
+    networks: [appnet]
+
+  # ── Next.js web app + LangChain agent ──────────────────────────────────────
+  nextjs:
+    build: ./nextjs
+    image: cu-research/nextjs
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      <<: *llm-env
+      DATABASE_URL: postgresql://${APP_DB_USER:-chatbot}:${APP_DB_PASSWORD:-chatbot}@app-db:5432/${APP_DB_NAME:-chatbot_db}
+      MODEL_INTERPRETATION_URL: http://model-interpretation:3001
+      DATABASE_QUERY_URL: http://database-query:3002
+      ONTOP_SPARQL_URL: http://ontop:8080/sparql
+      MCP_API_TOKEN: ${MCP_API_TOKEN:-}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET in .env}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      API_KEY_ENCRYPTION_SECRET: ${API_KEY_ENCRYPTION_SECRET:?set API_KEY_ENCRYPTION_SECRET in .env}
+    depends_on:
+      app-db:
+        condition: service_healthy
+      model-interpretation:
+        condition: service_started
+      database-query:
+        condition: service_started
+    networks: [appnet]
+
+volumes:
+  app-db-data:
+  target-db-data:
+  ontop-input:
+
+networks:
+  appnet:
+    driver: bridge

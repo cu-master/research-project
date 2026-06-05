@@ -762,6 +762,33 @@ describe("strict signature matching (no scalar fallback)", () => {
       )
     ).toBe(false);
   });
+
+  it("matches when a stripped unit leaves a trailing underscore (\"Rental Price ($)\" -> rental_rate)", () => {
+    expect(
+      matchesExpectedSignature(
+        "[{\"film_id\":\"1\",\"title\":\"Academy Dinosaur\",\"rental_rate\":\"0.99\"}]",
+        "[{\"Film ID\":\"1\",\"Rental Price ($)\":\"0.99\",\"Title\":\"Academy Dinosaur\"}]"
+      )
+    ).toBe(true);
+  });
+
+  it("matches when the id column is verbosely named (\"Rental Transaction ID\" -> rental_id)", () => {
+    expect(
+      matchesExpectedSignature(
+        "[{\"rental_id\":\"2\",\"first_name\":\"Tommy\"}]",
+        "[{\"Rental Transaction ID\":\"2\",\"Customer First Name\":\"Tommy\"}]"
+      )
+    ).toBe(true);
+  });
+
+  it("still fails when the numeric value is wrong despite a matching column name", () => {
+    expect(
+      matchesExpectedSignature(
+        "[{\"film_id\":\"1\",\"rental_rate\":\"0.99\"}]",
+        "[{\"Film ID\":\"1\",\"Rental Price ($)\":\"1.99\"}]"
+      )
+    ).toBe(false);
+  });
 });
 
 describe("row count enforcement", () => {
