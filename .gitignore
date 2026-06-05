@@ -36,3 +36,7 @@ ontop/input/ontop.properties
 
 # AI benchmark generated outputs
 nextjs/benchmarks/results/
+
+c4-model/
+data/
+docs/
