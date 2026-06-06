@@ -5,7 +5,7 @@
 # the real ontop.properties is gitignored because it holds live DB credentials.
 # Copy this to ontop.properties only if you need to run Ontop standalone.
 #
-# NFR-01: the ?options=-c default_transaction_read_only=on parameter forces the
+# The ?options=-c default_transaction_read_only=on parameter forces the
 # JDBC session read-only as defense-in-depth. Use the read-only chatbot_ro role
 # (see mcp-servers/scripts/create-readonly-role.sql) as jdbc.user.
 
