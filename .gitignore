@@ -38,5 +38,5 @@ ontop/input/ontop.properties
 nextjs/benchmarks/results/
 
 c4-model/
-data/
 docs/
+db-schema-ontology/
