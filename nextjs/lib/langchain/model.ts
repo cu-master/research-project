@@ -10,6 +10,8 @@ interface CreateModelOptions {
   provider?: ModelProvider;
   model?: string;
   temperature?: number;
+  /** Override the output-token cap. Defaults to MAX_OUTPUT_TOKENS (chat budget). */
+  maxTokens?: number;
 }
 
 // Runtime overrides — updated by PUT /api/agent-settings without server restart.
@@ -62,6 +64,7 @@ export function getRuntimeConfig(): {
 
 export function createModel(options?: CreateModelOptions): BaseChatModel {
   const provider = options?.provider ?? runtimeProvider ?? LLM_PROVIDER;
+  const maxTokens = options?.maxTokens ?? MAX_OUTPUT_TOKENS;
 
   switch (provider) {
     // NFR-06: cap output tokens per request so a single response can't blow
@@ -77,7 +80,7 @@ export function createModel(options?: CreateModelOptions): BaseChatModel {
         apiKey,
         model: modelName,
         temperature: options?.temperature,
-        maxTokens: MAX_OUTPUT_TOKENS,
+        maxTokens,
       });
     }
 
@@ -91,7 +94,7 @@ export function createModel(options?: CreateModelOptions): BaseChatModel {
         apiKey,
         model: modelName,
         temperature: options?.temperature,
-        maxTokens: MAX_OUTPUT_TOKENS,
+        maxTokens,
       });
     }
 
@@ -106,7 +109,7 @@ export function createModel(options?: CreateModelOptions): BaseChatModel {
         model: modelName,
         configuration: { baseURL: "https://api.groq.com/openai/v1" },
         temperature: options?.temperature,
-        maxTokens: MAX_OUTPUT_TOKENS,
+        maxTokens,
       });
     }
 
@@ -121,7 +124,7 @@ export function createModel(options?: CreateModelOptions): BaseChatModel {
         apiKey,
         model: modelName,
         temperature: options?.temperature,
-        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        maxOutputTokens: maxTokens,
       });
     }
   }

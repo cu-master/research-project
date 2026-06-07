@@ -12,7 +12,12 @@ SRC=/dvdrental-src
 
 if [ -f "$SRC/dvdrental.tar" ]; then
   echo "[target-db-init] Restoring $SRC/dvdrental.tar into '$DB' ..."
-  pg_restore -U "$POSTGRES_USER" -d "$DB" --no-owner --no-privileges "$SRC/dvdrental.tar"
+  # pg_restore exits non-zero when it ignores benign errors — notably the
+  # dvdrental dump's `CREATE SCHEMA public`, which already exists on PG15+.
+  # Without the `|| …` guard, `set -e` would abort here and the role-creation
+  # script (02-…) that follows would never run, leaving chatbot_ro missing.
+  pg_restore -U "$POSTGRES_USER" -d "$DB" --no-owner --no-privileges "$SRC/dvdrental.tar" \
+    || echo "[target-db-init] pg_restore finished with ignored errors (continuing)."
 elif ls "$SRC"/*.sql >/dev/null 2>&1; then
   for f in "$SRC"/*.sql; do
     echo "[target-db-init] Loading $f into '$DB' ..."

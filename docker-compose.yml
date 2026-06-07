@@ -52,6 +52,40 @@ services:
       retries: 5
     networks: [appnet]
 
+  # ── Ontop bootstrap: seed the shared config volume on a cold start ───────────
+  # database-query only writes mapping.ttl + ontop.properties when a project is
+  # first queried, but Ontop refuses to boot without them. This one-shot init
+  # seeds the named volume from the committed templates (idempotently — it never
+  # overwrites a config the app has already written), so Ontop can start in lazy
+  # mode and hot-reload the real config later.
+  ontop-seed:
+    image: busybox:1.36
+    environment:
+      # Bootstrap Ontop against the bundled sample DB so it works out-of-the-box.
+      # ($$VAR is passed through compose so the shell expands it, not compose.)
+      TARGET_DB_NAME: ${TARGET_DB_NAME:-dvdrental}
+      TARGET_DB_RO_PASSWORD: ${TARGET_DB_RO_PASSWORD:-ro_password}
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        if [ ! -f /vol/ontop.properties ]; then
+          echo "[ontop-seed] seeding ontop.properties (target-db / $${TARGET_DB_NAME})"
+          printf 'jdbc.url=jdbc:postgresql://target-db:5432/%s?options=-c%%20default_transaction_read_only=on\njdbc.driver=org.postgresql.Driver\njdbc.user=chatbot_ro\njdbc.password=%s\n' \
+            "$${TARGET_DB_NAME}" "$${TARGET_DB_RO_PASSWORD}" > /vol/ontop.properties
+        fi
+        [ -f /vol/mapping.ttl ] || { echo "[ontop-seed] seeding mapping.ttl"; cp /seed/mapping.ttl /vol/mapping.ttl; }
+        # database-query (the mcp user, uid 1001) overwrites these at query time
+        # with the project's real config. The seed runs as root, so hand the dir
+        # + files to uid 1001 — otherwise that write fails with EACCES.
+        chown -R 1001:1001 /vol
+        echo "[ontop-seed] ready"
+    volumes:
+      - ontop-input:/vol
+      - ./ontop/input:/seed:ro
+    networks: [appnet]
+
   # ── Ontop OBDA SPARQL endpoint ──────────────────────────────────────────────
   # Dev mode watches the shared config volume and restarts the endpoint whenever
   # database-query writes a new mapping/properties — no container restart needed.
@@ -61,6 +95,9 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
+    depends_on:
+      ontop-seed:
+        condition: service_completed_successfully
     volumes:
       # Shared with database-query: it writes mapping.ttl + ontop.properties here.
       - ontop-input:/opt/ontop/input
