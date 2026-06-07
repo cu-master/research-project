@@ -1,0 +1,410 @@
+# DVD Rental Domain Vocabulary
+# RDFS/OWL vocabulary derived from the Sakila / Pagila sample schema.
+# Authored to be importable into Dataspecer (https://dataspecer.com) as a vocabulary.
+#
+# Modelling conventions (matching Dataspecer's vocabulary model):
+#   - entity tables           -> owl:Class
+#   - attribute columns       -> owl:DatatypeProperty  (Dataspecer "attribute")
+#   - foreign-key relations   -> owl:ObjectProperty    (Dataspecer "relationship")
+#   - many-to-many join tables (film_category, film_actor) -> object properties
+#   - surrogate primary keys (*_id) become the identity (IRI) of an instance,
+#     so they are NOT modelled as attributes
+#   - technical bookkeeping columns (last_update, fulltext) are omitted
+
+@prefix dvd:  <https://example.org/ns/dvd-rental#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+#################################################################
+#    Ontology
+#################################################################
+
+<https://example.org/ns/dvd-rental#> a owl:Ontology ;
+    dct:title "DVD Rental Domain Vocabulary"@en ;
+    dct:description """A domain vocabulary for a DVD / film rental business, derived from the Sakila / Pagila sample database schema. It defines the core concepts of the domain - films and the languages, categories and actors that describe them; physical inventory copies held in stores; rentals and payments; and the customers, staff, stores and postal locations involved - as classes with their attributes and relationships, independently of any particular storage or serialisation format."""@en ;
+    vann:preferredNamespacePrefix "dvd" ;
+    vann:preferredNamespaceUri "https://example.org/ns/dvd-rental#" .
+
+#################################################################
+#    Classes
+#################################################################
+
+dvd:Film a owl:Class ;
+    rdfs:label "Film"@en ;
+    skos:definition "A film (motion picture) title that the business makes available for rental."@en .
+
+dvd:Category a owl:Class ;
+    rdfs:label "Category"@en ;
+    skos:definition "A genre or category to which films are assigned, such as Action, Comedy or Documentary."@en .
+
+dvd:Language a owl:Class ;
+    rdfs:label "Language"@en ;
+    skos:definition "A spoken language in which a film is produced or made available."@en .
+
+dvd:Actor a owl:Class ;
+    rdfs:label "Actor"@en ;
+    skos:definition "A person who performs in one or more films."@en .
+
+dvd:InventoryItem a owl:Class ;
+    rdfs:label "Inventory item"@en ;
+    skos:definition "An individual physical copy of a film held for rental at a particular store."@en .
+
+dvd:Rental a owl:Class ;
+    rdfs:label "Rental"@en ;
+    skos:definition "An event in which a customer borrows an inventory item, with a date of rental and, once the item is brought back, a return date."@en .
+
+dvd:Payment a owl:Class ;
+    rdfs:label "Payment"@en ;
+    skos:definition "A monetary payment made by a customer, typically to settle a rental, recorded by a member of staff."@en .
+
+dvd:Staff a owl:Class ;
+    rdfs:label "Staff member"@en ;
+    skos:definition "An employee of a store who handles rentals and processes payments."@en .
+
+dvd:Customer a owl:Class ;
+    rdfs:label "Customer"@en ;
+    skos:definition "A person registered at a store who rents films and makes payments."@en .
+
+dvd:Address a owl:Class ;
+    rdfs:label "Address"@en ;
+    skos:definition "A postal address, used by customers, staff members and stores."@en .
+
+dvd:City a owl:Class ;
+    rdfs:label "City"@en ;
+    skos:definition "A city or town in which addresses are located."@en .
+
+dvd:Country a owl:Class ;
+    rdfs:label "Country"@en ;
+    skos:definition "A country to which cities belong."@en .
+
+dvd:Store a owl:Class ;
+    rdfs:label "Store"@en ;
+    skos:definition "A physical rental store, having a postal address, a managing staff member and a stock of inventory items."@en .
+
+#################################################################
+#    Attributes (datatype properties)
+#################################################################
+
+## --- Film -----------------------------------------------------
+
+dvd:title a owl:DatatypeProperty ;
+    rdfs:label "title"@en ;
+    skos:definition "The title of the film."@en ;
+    rdfs:domain dvd:Film ;
+    rdfs:range xsd:string .
+
+dvd:description a owl:DatatypeProperty ;
+    rdfs:label "description"@en ;
+    skos:definition "A short synopsis or description of the film."@en ;
+    rdfs:domain dvd:Film ;
+    rdfs:range xsd:string .
+
+dvd:releaseYear a owl:DatatypeProperty ;
+    rdfs:label "release year"@en ;
+    skos:definition "The year in which the film was released."@en ;
+    rdfs:domain dvd:Film ;
+    rdfs:range xsd:gYear .
+
+dvd:rentalDuration a owl:DatatypeProperty ;
+    rdfs:label "rental duration"@en ;
+    skos:definition "The default length of the rental period for the film, expressed in days."@en ;
+    rdfs:domain dvd:Film ;
+    rdfs:range xsd:integer .
+
+dvd:rentalRate a owl:DatatypeProperty ;
+    rdfs:label "rental rate"@en ;
+    skos:definition "The cost to rent the film for the default rental duration."@en ;
+    rdfs:domain dvd:Film ;
+    rdfs:range xsd:decimal .
+
+dvd:length a owl:DatatypeProperty ;
+    rdfs:label "length"@en ;
+    skos:definition "The running time of the film, expressed in minutes."@en ;
+    rdfs:domain dvd:Film ;
+    rdfs:range xsd:integer .
+
+dvd:replacementCost a owl:DatatypeProperty ;
+    rdfs:label "replacement cost"@en ;
+    skos:definition "The amount charged to a customer if the rented copy of the film is lost or not returned."@en ;
+    rdfs:domain dvd:Film ;
+    rdfs:range xsd:decimal .
+
+dvd:rating a owl:DatatypeProperty ;
+    rdfs:label "rating"@en ;
+    skos:definition "The content rating of the film, for example G, PG, PG-13, R or NC-17."@en ;
+    rdfs:domain dvd:Film ;
+    rdfs:range xsd:string .
+
+dvd:specialFeatures a owl:DatatypeProperty ;
+    rdfs:label "special features"@en ;
+    skos:definition "Additional content available with the film, such as trailers, deleted scenes or commentaries."@en ;
+    rdfs:domain dvd:Film ;
+    rdfs:range xsd:string .
+
+## --- Person-like attributes shared by Actor / Staff / Customer ---
+## rdfs:domain is intentionally left open so the same property can be
+## reused by several unrelated classes without RDFS conjunctive-domain
+## semantics forcing an instance to belong to all of them at once.
+
+dvd:firstName a owl:DatatypeProperty ;
+    rdfs:label "first name"@en ;
+    skos:definition "The given name of a person (actor, staff member or customer)."@en ;
+    rdfs:range xsd:string .
+
+dvd:lastName a owl:DatatypeProperty ;
+    rdfs:label "last name"@en ;
+    skos:definition "The family name of a person (actor, staff member or customer)."@en ;
+    rdfs:range xsd:string .
+
+dvd:email a owl:DatatypeProperty ;
+    rdfs:label "email"@en ;
+    skos:definition "An email address of a staff member or customer."@en ;
+    rdfs:range xsd:string .
+
+dvd:active a owl:DatatypeProperty ;
+    rdfs:label "active"@en ;
+    skos:definition "Whether the staff member or customer account is currently active."@en ;
+    rdfs:range xsd:boolean .
+
+## --- Staff ----------------------------------------------------
+
+dvd:username a owl:DatatypeProperty ;
+    rdfs:label "username"@en ;
+    skos:definition "The login name used by a staff member to access the system."@en ;
+    rdfs:domain dvd:Staff ;
+    rdfs:range xsd:string .
+
+dvd:password a owl:DatatypeProperty ;
+    rdfs:label "password"@en ;
+    skos:definition "The (hashed) password used by a staff member to access the system."@en ;
+    rdfs:domain dvd:Staff ;
+    rdfs:range xsd:string .
+
+dvd:picture a owl:DatatypeProperty ;
+    rdfs:label "picture"@en ;
+    skos:definition "A photograph of the staff member, stored as binary data."@en ;
+    rdfs:domain dvd:Staff ;
+    rdfs:range xsd:base64Binary .
+
+## --- Customer -------------------------------------------------
+
+dvd:createDate a owl:DatatypeProperty ;
+    rdfs:label "create date"@en ;
+    skos:definition "The date on which the customer record was created."@en ;
+    rdfs:domain dvd:Customer ;
+    rdfs:range xsd:date .
+
+## --- Category / Language / City / Country names ---------------
+
+dvd:categoryName a owl:DatatypeProperty ;
+    rdfs:label "name"@en ;
+    skos:definition "The human-readable name of the category."@en ;
+    rdfs:domain dvd:Category ;
+    rdfs:range xsd:string .
+
+dvd:languageName a owl:DatatypeProperty ;
+    rdfs:label "name"@en ;
+    skos:definition "The human-readable name of the language."@en ;
+    rdfs:domain dvd:Language ;
+    rdfs:range xsd:string .
+
+dvd:cityName a owl:DatatypeProperty ;
+    rdfs:label "name"@en ;
+    skos:definition "The name of the city."@en ;
+    rdfs:domain dvd:City ;
+    rdfs:range xsd:string .
+
+dvd:countryName a owl:DatatypeProperty ;
+    rdfs:label "name"@en ;
+    skos:definition "The name of the country."@en ;
+    rdfs:domain dvd:Country ;
+    rdfs:range xsd:string .
+
+## --- Address --------------------------------------------------
+
+dvd:address a owl:DatatypeProperty ;
+    rdfs:label "address"@en ;
+    skos:definition "The first line of the postal address (street and number)."@en ;
+    rdfs:domain dvd:Address ;
+    rdfs:range xsd:string .
+
+dvd:address2 a owl:DatatypeProperty ;
+    rdfs:label "address line 2"@en ;
+    skos:definition "An optional second line of the postal address."@en ;
+    rdfs:domain dvd:Address ;
+    rdfs:range xsd:string .
+
+dvd:district a owl:DatatypeProperty ;
+    rdfs:label "district"@en ;
+    skos:definition "The district, region or state component of the address."@en ;
+    rdfs:domain dvd:Address ;
+    rdfs:range xsd:string .
+
+dvd:postalCode a owl:DatatypeProperty ;
+    rdfs:label "postal code"@en ;
+    skos:definition "The postal or ZIP code of the address."@en ;
+    rdfs:domain dvd:Address ;
+    rdfs:range xsd:string .
+
+dvd:phone a owl:DatatypeProperty ;
+    rdfs:label "phone"@en ;
+    skos:definition "A telephone number associated with the address."@en ;
+    rdfs:domain dvd:Address ;
+    rdfs:range xsd:string .
+
+## --- Rental ---------------------------------------------------
+
+dvd:rentalDate a owl:DatatypeProperty ;
+    rdfs:label "rental date"@en ;
+    skos:definition "The date and time at which the rental began."@en ;
+    rdfs:domain dvd:Rental ;
+    rdfs:range xsd:dateTime .
+
+dvd:returnDate a owl:DatatypeProperty ;
+    rdfs:label "return date"@en ;
+    skos:definition "The date and time at which the rented item was returned."@en ;
+    rdfs:domain dvd:Rental ;
+    rdfs:range xsd:dateTime .
+
+## --- Payment --------------------------------------------------
+
+dvd:amount a owl:DatatypeProperty ;
+    rdfs:label "amount"@en ;
+    skos:definition "The monetary amount of the payment."@en ;
+    rdfs:domain dvd:Payment ;
+    rdfs:range xsd:decimal .
+
+dvd:paymentDate a owl:DatatypeProperty ;
+    rdfs:label "payment date"@en ;
+    skos:definition "The date and time at which the payment was made."@en ;
+    rdfs:domain dvd:Payment ;
+    rdfs:range xsd:dateTime .
+
+#################################################################
+#    Relationships (object properties)
+#################################################################
+
+## --- Film -----------------------------------------------------
+
+dvd:hasLanguage a owl:ObjectProperty ;
+    rdfs:label "language"@en ;
+    skos:definition "The language in which the film is available."@en ;
+    rdfs:domain dvd:Film ;
+    rdfs:range dvd:Language .
+
+dvd:hasCategory a owl:ObjectProperty ;
+    rdfs:label "category"@en ;
+    skos:definition "A category or genre assigned to the film. (Derived from the film_category join table.)"@en ;
+    rdfs:domain dvd:Film ;
+    rdfs:range dvd:Category .
+
+dvd:hasActor a owl:ObjectProperty ;
+    rdfs:label "actor"@en ;
+    skos:definition "An actor who performs in the film. (Derived from the film_actor join table.)"@en ;
+    rdfs:domain dvd:Film ;
+    rdfs:range dvd:Actor .
+
+## --- Inventory item -------------------------------------------
+
+dvd:ofFilm a owl:ObjectProperty ;
+    rdfs:label "film"@en ;
+    skos:definition "The film of which this inventory item is a physical copy."@en ;
+    rdfs:domain dvd:InventoryItem ;
+    rdfs:range dvd:Film .
+
+dvd:heldAtStore a owl:ObjectProperty ;
+    rdfs:label "store"@en ;
+    skos:definition "The store at which the inventory item is held."@en ;
+    rdfs:domain dvd:InventoryItem ;
+    rdfs:range dvd:Store .
+
+## --- Rental ---------------------------------------------------
+
+dvd:rentedItem a owl:ObjectProperty ;
+    rdfs:label "inventory item"@en ;
+    skos:definition "The inventory item (physical film copy) that was rented."@en ;
+    rdfs:domain dvd:Rental ;
+    rdfs:range dvd:InventoryItem .
+
+dvd:rentalCustomer a owl:ObjectProperty ;
+    rdfs:label "customer"@en ;
+    skos:definition "The customer who took out the rental."@en ;
+    rdfs:domain dvd:Rental ;
+    rdfs:range dvd:Customer .
+
+dvd:rentalStaff a owl:ObjectProperty ;
+    rdfs:label "staff member"@en ;
+    skos:definition "The staff member who handled the rental."@en ;
+    rdfs:domain dvd:Rental ;
+    rdfs:range dvd:Staff .
+
+## --- Payment --------------------------------------------------
+
+dvd:paymentCustomer a owl:ObjectProperty ;
+    rdfs:label "customer"@en ;
+    skos:definition "The customer who made the payment."@en ;
+    rdfs:domain dvd:Payment ;
+    rdfs:range dvd:Customer .
+
+dvd:paymentStaff a owl:ObjectProperty ;
+    rdfs:label "staff member"@en ;
+    skos:definition "The staff member who recorded the payment."@en ;
+    rdfs:domain dvd:Payment ;
+    rdfs:range dvd:Staff .
+
+dvd:paymentForRental a owl:ObjectProperty ;
+    rdfs:label "rental"@en ;
+    skos:definition "The rental that the payment settles."@en ;
+    rdfs:domain dvd:Payment ;
+    rdfs:range dvd:Rental .
+
+## --- Address shared by Customer / Staff / Store ---------------
+## rdfs:domain left open: an address is referenced by several classes.
+
+dvd:hasAddress a owl:ObjectProperty ;
+    rdfs:label "address"@en ;
+    skos:definition "The postal address of a customer, staff member or store."@en ;
+    rdfs:range dvd:Address .
+
+## --- Staff ----------------------------------------------------
+
+dvd:worksAtStore a owl:ObjectProperty ;
+    rdfs:label "store"@en ;
+    skos:definition "The store at which the staff member works."@en ;
+    rdfs:domain dvd:Staff ;
+    rdfs:range dvd:Store .
+
+## --- Customer -------------------------------------------------
+
+dvd:registeredAtStore a owl:ObjectProperty ;
+    rdfs:label "store"@en ;
+    skos:definition "The store at which the customer is registered."@en ;
+    rdfs:domain dvd:Customer ;
+    rdfs:range dvd:Store .
+
+## --- Store ----------------------------------------------------
+
+dvd:managedBy a owl:ObjectProperty ;
+    rdfs:label "manager"@en ;
+    skos:definition "The staff member who manages the store."@en ;
+    rdfs:domain dvd:Store ;
+    rdfs:range dvd:Staff .
+
+## --- Address -> City -> Country -------------------------------
+
+dvd:inCity a owl:ObjectProperty ;
+    rdfs:label "city"@en ;
+    skos:definition "The city in which the address is located."@en ;
+    rdfs:domain dvd:Address ;
+    rdfs:range dvd:City .
+
+dvd:inCountry a owl:ObjectProperty ;
+    rdfs:label "country"@en ;
+    skos:definition "The country to which the city belongs."@en ;
+    rdfs:domain dvd:City ;
+    rdfs:range dvd:Country .
