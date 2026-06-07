@@ -7,8 +7,19 @@ export const MAX_REQUEST_TOKENS = 4_000;
 export const MAX_SESSION_TOKENS = 50_000;
 export const MAX_TOOL_CALLS = 5;
 
-// Upper bound for `max_tokens` on the LLM output side of a single request.
-export const MAX_OUTPUT_TOKENS = 2_000;
+// Max estimated tokens allowed for a single user message (input side). Kept
+// independent of MAX_OUTPUT_TOKENS so raising the output/reply cap can never
+// shrink (or negate) the input allowance — that coupling rejected every message.
+export const MAX_INPUT_TOKENS = 2_000;
+
+// Upper bound for `max_tokens` on the LLM output side of a single chat request.
+export const MAX_OUTPUT_TOKENS = 8_000;
+
+// R2RML generation is a one-shot, non-conversational call (POST
+// /api/projects/generate-r2rml) that is NOT subject to the chat session budget,
+// and a full mapping easily exceeds 2k output tokens — so it gets a larger cap
+// to avoid the document being truncated mid-mapping.
+export const R2RML_MAX_OUTPUT_TOKENS = 12_000;
 
 // User-facing message for budget overflow. Spec calls this "Graceful Termination": explain the query is too complex rather than silently failing.
 export const TOKEN_BUDGET_EXCEEDED_MESSAGE =
@@ -57,14 +68,13 @@ export type BudgetVerdict =
   | { ok: true }
   | { ok: false; reason: "request_too_large" | "session_quota_exceeded"; message: string };
 
-// Pre-flight budget check: `request_too_large` if the user message alone exceeds 4k (we reserve ~half for output); `session_quota_exceeded` if adding it pushes the session past 50k.
+// Pre-flight budget check: `request_too_large` if the user message alone exceeds the input cap; `session_quota_exceeded` if adding it pushes the session past 50k.
 export async function checkRequestBudget(
   sessionId: string | undefined,
   userMessage: string
 ): Promise<BudgetVerdict> {
   const inputTokens = estimateTokens(userMessage);
-  const requestBudget = MAX_REQUEST_TOKENS - MAX_OUTPUT_TOKENS;
-  if (inputTokens > requestBudget) {
+  if (inputTokens > MAX_INPUT_TOKENS) {
     return {
       ok: false,
       reason: "request_too_large",

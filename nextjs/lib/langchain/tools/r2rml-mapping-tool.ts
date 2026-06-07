@@ -3,6 +3,7 @@ import { tool } from "@langchain/core/tools";
 import { createModel } from "../model";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { validateR2rmlMapping } from "@/lib/r2rml/validate";
+import { R2RML_MAX_OUTPUT_TOKENS } from "../token-budget";
 
 const generateR2rmlMappingSchema = z.object({
   ontologyContent: z
@@ -178,7 +179,9 @@ export const generateR2rmlMappingTool = tool(
     ontologyContent,
     dbSchema,
   }: z.infer<typeof generateR2rmlMappingSchema>) => {
-    const model = createModel({});
+    // A full mapping exceeds the 2k chat output cap; use the larger R2RML budget
+    // so the Turtle document isn't truncated mid-mapping.
+    const model = createModel({ maxTokens: R2RML_MAX_OUTPUT_TOKENS });
 
     const messages = [
       new SystemMessage(R2RML_SYSTEM_PROMPT),
