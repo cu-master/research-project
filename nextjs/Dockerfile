@@ -14,7 +14,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npx prisma generate
+# `prisma generate` only reads the schema, but prisma.config.ts requires
+# DATABASE_URL to be set at load time. The real URL is injected at runtime
+# (the entrypoint runs `db push`), so a throwaway placeholder is fine here.
+RUN DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder" npx prisma generate
 RUN npm run build
 
 # ── runner: minimal runtime image ────────────────────────────────────────────
@@ -33,11 +36,12 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
 # Prisma CLI + engines + generated client, so the entrypoint can run `db push`
-# against the metadata database at container start.
+# against the metadata database at container start. We copy the full installed
+# node_modules (not just prisma/@prisma/.prisma) because the Prisma 6 CLI loads
+# @prisma/config at startup, which pulls in transitive deps (effect, c12,
+# deepmerge-ts, empathic, …) that live outside those folders.
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules ./node_modules
 
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
