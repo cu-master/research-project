@@ -46,7 +46,7 @@ ${MANDATORY_PREFIX_BLOCK}
    - rr:logicalTable with rr:tableName
    - rr:subjectMap with rr:class pointing to the ontology class
    - rr:predicateObjectMap entries for each column-to-property mapping
-5. For foreign key relationships, use rr:RefObjectMap with rr:parentTriplesMap and rr:joinCondition.
+5. For foreign key relationships, use rr:RefObjectMap with rr:parentTriplesMap and rr:joinCondition. CRITICAL: every rr:child column must be a real column of THIS TriplesMap's table, and every rr:parent column must be a real column of the parent TriplesMap's table. Never invent a join column. For a many-to-many relationship (e.g. film↔actor), do NOT add a direct join between the two entity tables — instead create a TriplesMap on the bridge/junction table (e.g. film_actor) and join it to each side on that side's real key. A direct join like film.film_id = actor.film_id is invalid because actor has no film_id and will make Ontop reject the entire mapping.
 6. Use rr:template for generating IRIs from primary key columns.
 7. Use appropriate rr:datatype for literal values (xsd:integer, xsd:string, xsd:boolean, xsd:date, xsd:dateTime, xsd:decimal, etc.).
 8. If a column has no clear ontology mapping, include it as a direct property mapping with a comment noting the assumption.
@@ -183,6 +183,22 @@ export const generateR2rmlMappingTool = tool(
     // so the Turtle document isn't truncated mid-mapping.
     const model = createModel({ maxTokens: R2RML_MAX_OUTPUT_TOKENS });
 
+    // Parse the DB schema so validation can cross-check the mapping against real
+    // tables and columns (incl. join columns). Without it, only Turtle syntax and
+    // R2RML structure are checked — bogus joins like film→actor on a non-existent
+    // film_id would slip through and break Ontop at load time.
+    let parsedSchema:
+      | { tables: { name: string; columns: { name: string }[] }[] }
+      | null = null;
+    try {
+      const raw = JSON.parse(dbSchema);
+      if (raw && Array.isArray(raw.tables)) {
+        parsedSchema = raw;
+      }
+    } catch {
+      parsedSchema = null;
+    }
+
     const messages = [
       new SystemMessage(R2RML_SYSTEM_PROMPT),
       new HumanMessage(buildR2rmlPrompt(ontologyContent, dbSchema)),
@@ -219,7 +235,7 @@ export const generateR2rmlMappingTool = tool(
 
       const withPrefixes = ensurePrefixes(extracted);
 
-      const validation = await validateR2rmlMapping(withPrefixes);
+      const validation = await validateR2rmlMapping(withPrefixes, parsedSchema);
 
       if (validation.valid) {
         return JSON.stringify({
@@ -240,11 +256,15 @@ export const generateR2rmlMappingTool = tool(
       }
     }
 
-    // All retries exhausted — return the last attempt with a warning.
+    // All retries exhausted and the mapping STILL has validation errors. Returning
+    // success here would let callers persist a mapping that breaks Ontop at load
+    // time (e.g. an invalid join column makes Ontop reject the whole mapping and
+    // return HTTP 500 on every query). Fail loudly instead so the bad mapping is
+    // never saved; the raw attempt is returned for debugging.
     return JSON.stringify({
-      success: true,
-      r2rml_mapping: lastMapping,
-      warning: `Mapping was returned after ${MAX_RETRIES} repair attempt(s) but still has validation errors: ${lastErrors.join("; ")}`,
+      success: false,
+      error: `R2RML mapping still has validation errors after ${MAX_RETRIES} repair attempt(s): ${lastErrors.join("; ")}`,
+      raw: lastMapping,
     });
   },
   {

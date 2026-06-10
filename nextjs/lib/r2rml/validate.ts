@@ -149,8 +149,26 @@ export async function validateR2rmlMapping(
 
   const knownTriplesMapUris = new Set(allTriplesMaps);
 
+  // TriplesMap URI → its table name(s). Needed to resolve a join's rr:parent
+  // columns to the *parent* TriplesMap's table for schema cross-checking.
+  const tmToTables = new Map<string, string[]>();
+  for (const tm of allTriplesMaps) {
+    const tables: string[] = [];
+    for (const lt of getObjects(quads, tm, `${RR}logicalTable`)) {
+      tables.push(...getObjects(quads, lt, `${RR}tableName`));
+    }
+    tmToTables.set(tm, tables);
+  }
+
   // Track (table → Set<column>) for scoped DB cross-checking later.
   const tableToColumns = new Map<string, Set<string>>();
+
+  // (table, column) pairs drawn from rr:joinCondition. Unlike object-map columns
+  // (which may be aliases from an rr:sqlQuery), join columns are always real
+  // column references, so a missing one is a hard error — Ontop rejects the
+  // entire mapping over it. A common cause is mapping a many-to-many relationship
+  // as a direct FK join instead of through its bridge table.
+  const joinColumnRefs: { table: string; column: string; tm: string }[] = [];
 
   const allReferencedTables: string[] = [];
   const allReferencedColumns: string[] = [];
@@ -271,12 +289,25 @@ export async function validateR2rmlMapping(
         }
 
         const joinConditions = getObjects(quads, om, `${RR}joinCondition`);
+        // Tables the rr:parent columns must belong to (from the parent TriplesMap).
+        const parentTables = parentRefs.flatMap((p) => tmToTables.get(p) ?? []);
         for (const jc of joinConditions) {
-          getObjects(quads, jc, `${RR}child`).forEach(recordColumn);
-          // Parent columns belong to the parent table — track globally only.
-          getObjects(quads, jc, `${RR}parent`).forEach((c) =>
-            allReferencedColumns.push(c)
-          );
+          // Child columns belong to this TriplesMap's table(s); parent columns to
+          // the parent's. Route both through the join-column check (hard error),
+          // and into the stats column bag — but not the general per-table warning
+          // check, which the dedicated error check below supersedes for joins.
+          getObjects(quads, jc, `${RR}child`).forEach((c) => {
+            allReferencedColumns.push(c);
+            for (const tn of tmTableNames) {
+              joinColumnRefs.push({ table: tn, column: c, tm });
+            }
+          });
+          getObjects(quads, jc, `${RR}parent`).forEach((c) => {
+            allReferencedColumns.push(c);
+            for (const tn of parentTables) {
+              joinColumnRefs.push({ table: tn, column: c, tm });
+            }
+          });
         }
       }
     }
@@ -328,6 +359,26 @@ export async function validateR2rmlMapping(
             message: `Column "${colName}" referenced in mapping for table "${tableName}" was not found in that table's columns.`,
           });
         }
+      }
+    }
+
+    // Join columns must exist in their (child or parent) table. Ontop fails to
+    // initialize the whole mapping if one doesn't, so this is an error — the most
+    // common cause is a many-to-many relationship mapped as a direct join (e.g.
+    // film→actor on film_id) instead of through its bridge table.
+    for (const { table, column, tm } of joinColumnRefs) {
+      const cleanedTable = table.replace(/^"|"$/g, "").toLowerCase();
+      const dbCols = dbColumnsByTable.get(cleanedTable);
+      if (!dbCols) {
+        // Table itself doesn't exist — already reported above; skip.
+        continue;
+      }
+      const cleanedCol = column.replace(/^"|"$/g, "").toLowerCase();
+      if (!dbCols.has(cleanedCol)) {
+        issues.push({
+          level: "error",
+          message: `Join column "${column}" referenced in <${tm}> does not exist in table "${table}". A rr:joinCondition must reference real columns of both the child and parent tables; a many-to-many relationship must be mapped through its bridge table, not as a direct join.`,
+        });
       }
     }
   }

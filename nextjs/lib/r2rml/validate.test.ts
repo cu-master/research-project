@@ -204,6 +204,88 @@ describe("validateR2rmlMapping", () => {
         ).toBe(true);
     });
 
+    // Regression: a many-to-many relationship mapped as a direct join uses a
+    // join column that doesn't exist in the parent table. Ontop rejects the whole
+    // mapping over this, so the validator must flag it as an error (not a warning).
+    it("errors when a join column does not exist in the parent table", async () => {
+        const badJoin = `
+      @prefix rr: <http://www.w3.org/ns/r2rml#> .
+      @prefix ex: <http://example.org/ontology/> .
+
+      <#FilmMap>
+        rr:logicalTable [ rr:tableName "film" ] ;
+        rr:subjectMap [
+          rr:template "http://example.org/film/{film_id}" ;
+          rr:class ex:Film
+        ] ;
+        rr:predicateObjectMap [
+          rr:predicate ex:hasActor ;
+          rr:objectMap [
+            rr:parentTriplesMap <#ActorMap> ;
+            rr:joinCondition [ rr:child "film_id" ; rr:parent "film_id" ]
+          ]
+        ] .
+
+      <#ActorMap>
+        rr:logicalTable [ rr:tableName "actor" ] ;
+        rr:subjectMap [
+          rr:template "http://example.org/actor/{actor_id}" ;
+          rr:class ex:Actor
+        ] .
+    `;
+        const dbSchema = {
+            tables: [
+                { name: "film", columns: [{ name: "film_id" }] },
+                // actor has NO film_id — the join parent column is invalid.
+                { name: "actor", columns: [{ name: "actor_id" }] },
+            ],
+        };
+        const result = await validateR2rmlMapping(badJoin, dbSchema);
+        expect(result.valid).toBe(false);
+        expect(
+            result.issues.some(
+                (i) => i.level === "error" && i.message.includes("film_id") && i.message.includes("actor")
+            )
+        ).toBe(true);
+    });
+
+    // The correct bridge-table mapping for the same relationship must validate.
+    it("accepts a many-to-many relationship mapped through a bridge table", async () => {
+        const bridgeMapping = `
+      @prefix rr: <http://www.w3.org/ns/r2rml#> .
+      @prefix ex: <http://example.org/ontology/> .
+
+      <#FilmActorMap>
+        rr:logicalTable [ rr:tableName "film_actor" ] ;
+        rr:subjectMap [
+          rr:template "http://example.org/film/{film_id}" ;
+          rr:class ex:Film
+        ] ;
+        rr:predicateObjectMap [
+          rr:predicate ex:hasActor ;
+          rr:objectMap [
+            rr:parentTriplesMap <#ActorMap> ;
+            rr:joinCondition [ rr:child "actor_id" ; rr:parent "actor_id" ]
+          ]
+        ] .
+
+      <#ActorMap>
+        rr:logicalTable [ rr:tableName "actor" ] ;
+        rr:subjectMap [
+          rr:template "http://example.org/actor/{actor_id}" ;
+          rr:class ex:Actor
+        ] .
+    `;
+        const dbSchema = {
+            tables: [
+                { name: "film_actor", columns: [{ name: "film_id" }, { name: "actor_id" }] },
+                { name: "actor", columns: [{ name: "actor_id" }] },
+            ],
+        };
+        const result = await validateR2rmlMapping(bridgeMapping, dbSchema);
+        expect(result.issues.filter((i) => i.level === "error")).toHaveLength(0);
+    });
+
     it("returns valid=true when the mapping matches the DB schema exactly", async () => {
         const dbSchema = {
             tables: [
