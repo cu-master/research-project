@@ -363,7 +363,7 @@ export default function AgentSettingsCard() {
 
         <p className="text-xs text-gray-400">
           Runtime keys override <code className="font-mono">.env</code> without a server restart
-          and are stored in memory only — they reset when the server restarts.
+          and are saved to the database (encrypted) per user — they persist across server restarts.
         </p>
       </div>
 
