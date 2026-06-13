@@ -14,56 +14,32 @@ interface CreateModelOptions {
   maxTokens?: number;
 }
 
-// Runtime overrides — updated by PUT /api/agent-settings without server restart.
-let runtimeProvider: ModelProvider | null = null;
-let runtimeModel: string | null = null;
-
-// Per-provider runtime API keys (take priority over env vars when set).
-const runtimeApiKeys: Partial<Record<ModelProvider, string>> = {};
-
-export function setRuntimeModel(provider: ModelProvider, model: string) {
-  runtimeProvider = provider;
-  runtimeModel = model;
-}
-
-export function setRuntimeApiKey(provider: ModelProvider, apiKey: string) {
-  runtimeApiKeys[provider] = apiKey;
-}
-
-/** Returns the effective API key for a provider: runtime override → env var → undefined */
+/** Returns the API key for a provider from env vars, or undefined when unset. */
 function getApiKey(provider: ModelProvider): string | undefined {
-  return (
-    runtimeApiKeys[provider] ||
-    {
-      google: process.env.GOOGLE_API_KEY,
-      anthropic: process.env.ANTHROPIC_API_KEY,
-      openai: process.env.OPENAI_API_KEY,
-      groq: process.env.GROQ_API_KEY,
-    }[provider]
-  );
+  return {
+    google: process.env.GOOGLE_API_KEY,
+    anthropic: process.env.ANTHROPIC_API_KEY,
+    openai: process.env.OPENAI_API_KEY,
+    groq: process.env.GROQ_API_KEY,
+  }[provider];
 }
 
-export function getRuntimeConfig(): {
-  provider: ModelProvider;
-  model: string;
-  /** true = a runtime API key is stored (overriding .env), false = using .env */
-  hasRuntimeKey: boolean;
-} {
-  const provider = runtimeProvider ?? LLM_PROVIDER;
+/** Resolves the active provider/model purely from env configuration. */
+export function getActiveModelConfig(): { provider: ModelProvider; model: string } {
+  const provider = LLM_PROVIDER;
   const model =
-    runtimeModel ??
-    (provider === "anthropic"
+    provider === "anthropic"
       ? process.env.ANTHROPIC_MODEL ?? "claude-3-5-haiku-latest"
       : provider === "openai"
       ? process.env.OPENAI_MODEL ?? "gpt-4o-mini"
       : provider === "groq"
       ? process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile"
-      : process.env.GOOGLE_MODEL ?? "gemini-1.5-flash");
-  return { provider, model, hasRuntimeKey: !!runtimeApiKeys[provider] };
+      : process.env.GOOGLE_MODEL ?? "gemini-1.5-flash";
+  return { provider, model };
 }
 
 export function createModel(options?: CreateModelOptions): BaseChatModel {
-  const provider = options?.provider ?? runtimeProvider ?? LLM_PROVIDER;
+  const provider = options?.provider ?? LLM_PROVIDER;
   const maxTokens = options?.maxTokens ?? MAX_OUTPUT_TOKENS;
 
   switch (provider) {
@@ -73,7 +49,7 @@ export function createModel(options?: CreateModelOptions): BaseChatModel {
     case "anthropic": {
       const apiKey = getApiKey("anthropic");
       const modelName =
-        options?.model ?? runtimeModel ?? process.env.ANTHROPIC_MODEL ?? "claude-3-5-haiku-latest";
+        options?.model ?? process.env.ANTHROPIC_MODEL ?? "claude-3-5-haiku-latest";
       if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY for Anthropic provider.");
       console.log(`Using Anthropic model: ${modelName}`);
       return new ChatAnthropic({
@@ -87,7 +63,7 @@ export function createModel(options?: CreateModelOptions): BaseChatModel {
     case "openai": {
       const apiKey = getApiKey("openai");
       const modelName =
-        options?.model ?? runtimeModel ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+        options?.model ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini";
       if (!apiKey) throw new Error("Missing OPENAI_API_KEY for OpenAI provider.");
       console.log(`Using OpenAI model: ${modelName}`);
       return new ChatOpenAI({
@@ -101,7 +77,7 @@ export function createModel(options?: CreateModelOptions): BaseChatModel {
     case "groq": {
       const apiKey = getApiKey("groq");
       const modelName =
-        options?.model ?? runtimeModel ?? process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+        options?.model ?? process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
       if (!apiKey) throw new Error("Missing GROQ_API_KEY for Groq provider.");
       console.log(`Using Groq model: ${modelName}`);
       return new ChatOpenAI({
@@ -117,7 +93,7 @@ export function createModel(options?: CreateModelOptions): BaseChatModel {
     default: {
       const apiKey = getApiKey("google");
       const modelName =
-        options?.model ?? runtimeModel ?? process.env.GOOGLE_MODEL ?? "gemini-1.5-flash";
+        options?.model ?? process.env.GOOGLE_MODEL ?? "gemini-1.5-flash";
       if (!apiKey) throw new Error("Missing GOOGLE_API_KEY for Google provider.");
       console.log(`Using Google model: ${modelName}`);
       return new ChatGoogleGenerativeAI({
