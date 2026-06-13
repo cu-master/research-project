@@ -175,7 +175,6 @@ services:
       MCP_API_TOKEN: ${MCP_API_TOKEN:-}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET in .env}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      API_KEY_ENCRYPTION_SECRET: ${API_KEY_ENCRYPTION_SECRET:?set API_KEY_ENCRYPTION_SECRET in .env}
     depends_on:
       app-db:
         condition: service_healthy

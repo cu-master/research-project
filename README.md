@@ -45,7 +45,6 @@ cp .env.docker.example .env
 Fill in `.env`:
 
 - `MCP_API_TOKEN`, `NEXTAUTH_SECRET` — `openssl rand -base64 32`
-- `API_KEY_ENCRYPTION_SECRET` — `openssl rand -base64 48`
 - `LLM_PROVIDER` + the matching API key (e.g. `GOOGLE_API_KEY`)
 
 `MCP_API_TOKEN` is the shared bearer token between the Next.js app and both MCP

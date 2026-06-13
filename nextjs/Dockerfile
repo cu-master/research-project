@@ -5,6 +5,10 @@ FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
+# The lockfile is generated with npm 11; node:22-alpine ships npm 10, which
+# resolves vite's peerOptional @types/node differently and breaks `npm ci`.
+# Pin npm 11 so the build matches the lockfile's resolver.
+RUN npm install -g npm@11
 # `prisma generate` runs from the postinstall-less flow below; install first.
 RUN npm ci
 

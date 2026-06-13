@@ -88,11 +88,6 @@ RULES:
 
 let agentInstance: Awaited<ReturnType<typeof createAgent>> | null = null;
 
-// Invalidate the cached agent — called after provider/model changes.
-export function resetAgent() {
-  agentInstance = null;
-}
-
 export async function getAgent() {
   if (!agentInstance) {
     const model = createModel();

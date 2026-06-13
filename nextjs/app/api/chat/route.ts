@@ -13,10 +13,7 @@ import { runWithLangChainRequestContext } from "@/lib/langchain/request-context"
 import { getAuthUserId } from "@/lib/auth-helpers";
 import { getDefaultProjectId } from "@/lib/db/users";
 import { getProject } from "@/lib/db/projects";
-import { getUserAgentConfig } from "@/lib/db/agent-config";
-import { getRuntimeConfig, setRuntimeModel, setRuntimeApiKey } from "@/lib/langchain/model";
-import { resetAgent } from "@/lib/langchain/agent";
-import type { ModelProvider } from "@/lib/langchain/types";
+import { getActiveModelConfig } from "@/lib/langchain/model";
 import {
   MAX_TOOL_CALLS,
   TOOL_LOOP_EXCEEDED_MESSAGE,
@@ -323,26 +320,7 @@ export async function POST(request: Request) {
       .map((msg: ChatMessage) => convertToLangChainMessage(msg))
       .filter((msg: HumanMessage | AIMessage | null): msg is HumanMessage | AIMessage => msg !== null);
 
-    // Rehydrate agent config from the DB (user-scoped) if runtime is still on defaults.
-    // This ensures the saved provider/model is used after a server restart.
-    try {
-      const { provider: rp } = getRuntimeConfig();
-      const isDefault = !rp || rp === (process.env.LLM_PROVIDER ?? "google");
-      if (isDefault) {
-        const savedConfig = await getUserAgentConfig(userId);
-        if (savedConfig) {
-          setRuntimeModel(savedConfig.provider as ModelProvider, savedConfig.model);
-          if (savedConfig.api_key) {
-            setRuntimeApiKey(savedConfig.provider as ModelProvider, savedConfig.api_key);
-          }
-          resetAgent();
-        }
-      }
-    } catch (err) {
-      console.warn("[Chat] Could not rehydrate agent config:", err);
-    }
-
-    const { provider: llmProvider, model: llmModel } = getRuntimeConfig();
+    const { provider: llmProvider, model: llmModel } = getActiveModelConfig();
     console.log("Processing message:", safeMessage, "| LLM:", `${llmProvider}/${llmModel}`);
 
     const messageContent = buildMessageContent(safeMessage);
